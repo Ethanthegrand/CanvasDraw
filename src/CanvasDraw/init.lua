@@ -1012,7 +1012,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local curx1 = X1
 			local curx2 = X2
 
-			if invslope1 >= math.huge then
+			if invslope1 >= math.huge or invslope1 ~= invslope1 then
 				invslope1 = 0
 				invslope2 = 0
 
