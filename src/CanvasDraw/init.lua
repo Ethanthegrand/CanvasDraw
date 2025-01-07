@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 6/01/2025
-	Version: 4.13.0
+	Last updated: 7/01/2025
+	Version: 4.13.1
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -1089,40 +1089,36 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		else -- Custom polygon based thick line
 			RoundedCaps = RoundedCaps or type(RoundedCaps) == "nil" -- Ensures if the parameter is empty, its on be default
 
-			local RawRot = math.atan2(X1 - X2, Y1 - Y2)
+			local RawRot = math.atan2(X1 - X2, Y1 - Y2) -- Use distances between each axis
 			local Theta = RawRot
-
-			local CorrectionFactor = 0.5
 
 			local PiHalf = math.pi / 2
 
-			-- Ensure a positive angle
+			-- Ensure we get an angle that measures up to 360 degrees (also avoids negative numbers)
 			if RawRot < 0 then
 				Theta = math.pi * 2 + RawRot
 			end
 
-			local function CorrectedOffset(X, Y, Angle, Thickness)
-				local OffsetX = math.sin(Angle) * Thickness
-				local OffsetY = math.cos(Angle) * Thickness
+			local Diameter = 1 + (Thickness * 2)
+			local Rounder = (math.pi * 1.5) / Diameter
 
-				OffsetX = OffsetX * (1 - CorrectionFactor / Thickness)
-				OffsetY = OffsetY * (1 - CorrectionFactor / Thickness)
-
-				return X + OffsetX, Y + OffsetY
+			if RoundedCaps then
+				Theta = math.round(Theta / Rounder) * Rounder -- Avoids strange behaviours for the triangle points for the end circles
 			end
 
 			-- Start polygon points
-			local StartCornerX1, StartCornerY1 = CorrectedOffset(X1, Y1, Theta + PiHalf, Thickness + 1)
-			local StartCornerX2, StartCornerY2 = CorrectedOffset(X1, Y1, Theta - PiHalf, Thickness + 1)
+			local StartCornerX1 = math.round(X1 + math.sin(Theta + PiHalf) * Thickness)
+			local StartCornerY1 = math.round(Y1 + math.cos(Theta + PiHalf) * Thickness)
+
+			local StartCornerX2 = math.round(X1 + math.sin(Theta - PiHalf) * Thickness)
+			local StartCornerY2 = math.round(Y1 + math.cos(Theta - PiHalf) * Thickness)
 
 			-- End polygon points
-			local EndCornerX1, EndCornerY1 = CorrectedOffset(X2, Y2, Theta + PiHalf, Thickness + 1)
-			local EndCornerX2, EndCornerY2 = CorrectedOffset(X2, Y2, Theta - PiHalf, Thickness + 1)
+			local EndCornerX1 = math.round(X2 + math.sin(Theta + PiHalf) * Thickness)
+			local EndCornerY1 = math.round(Y2 + math.cos(Theta + PiHalf) * Thickness)
 
-			StartCornerX1, StartCornerY1 = RoundN(StartCornerX1), RoundN(StartCornerY1)
-			StartCornerX2, StartCornerY2 = RoundN(StartCornerX2), RoundN(StartCornerY2)
-			EndCornerX1, EndCornerY1 = RoundN(EndCornerX1), RoundN(EndCornerY1)
-			EndCornerX2, EndCornerY2 = RoundN(EndCornerX2), RoundN(EndCornerY2)
+			local EndCornerX2 = math.round(X2 + math.sin(Theta - PiHalf) * Thickness)
+			local EndCornerY2 = math.round(Y2 + math.cos(Theta - PiHalf) * Thickness)
 
 			-- Draw 2 triangles at the start and end corners
 			local TrianglePointsA = Canvas:GetTrianglePoints(
@@ -1435,71 +1431,102 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	]]
 	function Canvas:FloodFillXY(X: number, Y: number, Colour: Color3, Alpha: number?) -- Optimised by @Arevoir
 		X, Y = CeilN(X), CeilN(Y)
-		
-		if X < 1 or Y < 1 or X > self.CurrentResX or Y > self.CurrentResY then return end
-		
+		local canvasWidth, canvasHeight = self.CurrentResX, self.CurrentResY
+
+		if X < 1 or Y < 1 or X > canvasWidth or Y > canvasHeight then return end
+
 		local OrigR, OrigG, OrigB = self:GetRGB(X, Y)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		Alpha = Alpha or 1
-		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
 
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
-		
 		if OrigR == ColR and OrigG == ColG and OrigB == ColB then return end
-		
+
+		-- Whoohoo to Buffers!
+		-- Create a buffer for seen pixels (1 byte per pixel)
+		local seenBuffer = buffer.create(canvasWidth * canvasHeight)
+
+		-- Preallocate queue buffer
+		-- This gets increased dynamically if there's more canvas to fill
+		local maxQueueSize = canvasWidth * canvasHeight * 2
+		local queueBuffer = buffer.create(maxQueueSize * 2 * 4) -- 2 values (X, Y) per queue entry, 4 bytes per number
+
+		-- Insert the first point into the queue
+		buffer.writei32(queueBuffer, 0, X)
+		buffer.writei32(queueBuffer, 4, Y)
+
+		-- Create a buffer for vectorOffsets instead of Vector2s (8 signed ints: 0, -1, 1, 0, 0, 1, -1, 0)
+		local vectorBuffer = buffer.create(8 * 4)
+		-- vectorUp
+		buffer.writei32(vectorBuffer, 0, 0); buffer.writei32(vectorBuffer, 4, -1);
+		-- vectorRight
+		buffer.writei32(vectorBuffer, 8, 1); buffer.writei32(vectorBuffer, 12, 0);
+		-- vectorDown
+		buffer.writei32(vectorBuffer, 16, 0); buffer.writei32(vectorBuffer, 20, 1);
+		-- vectorLeft
+		buffer.writei32(vectorBuffer, 24, -1); buffer.writei32(vectorBuffer, 28, 0);
+
+		local queueStart, queueEnd = 0, 1
 		local BlendingMode = self.AlphaBlendingMode
 
-		local seen = {} 
-
-		local vectorUp = Vector2New(0, -1)
-		local vectorRight = Vector2New(1, 0)
-		local vectorDown = Vector2New(0, 1)
-		local vectorLeft = Vector2New(-1, 0)
-
-		local queue = { Vector2New(X, Y) }
-
-		local canvasWidth, canvasHeight = self.CurrentResX, self.CurrentResY
-
-		while #queue > 0 do
-			local currentPoint = table.remove(queue)
-
-			local currentPointX = currentPoint.X
-			local currentPointY = currentPoint.Y
+		while queueStart < queueEnd do
+			local offset = queueStart * 8
+			local currentPointX = buffer.readi32(queueBuffer, offset)
+			local currentPointY = buffer.readi32(queueBuffer, offset + 4)
+			queueStart += 1
 
 			if currentPointX > 0 and currentPointY > 0 and currentPointX <= canvasWidth and currentPointY <= canvasHeight then
 				local key = currentPointX + (currentPointY - 1) * canvasWidth
 
-				if not seen[key] then
+				if buffer.readu8(seenBuffer, key - 1) == 0 then
 					local R, G, B = InternalCanvas:GetRGB(currentPointX, currentPointY)
 
 					if R == OrigR and G == OrigG and B == OrigB then
-						if BlendingMode == 0 and Alpha ~= 0 then -- Normal
+						if BlendingMode == 0 and Alpha ~= 0 then -- Normal blending
 							local SetR, SetG, SetB = ColR, ColG, ColB
-							
-							if Alpha < 1 then
-								local BgR, BgG, BgB = InternalCanvas:GetRGB(currentPointX, currentPointY)
 
+							if Alpha ~= 1 then
+								local BgR, BgG, BgB = InternalCanvas:GetRGB(currentPointX, currentPointY)
 								SetR = Lerp(BgR, ColR, Alpha)
 								SetG = Lerp(BgG, ColG, Alpha)
 								SetB = Lerp(BgB, ColB, Alpha)
 							end
 
 							InternalCanvas:SetRGB(currentPointX, currentPointY, SetR, SetG, SetB)
-						elseif BlendingMode == 1 then -- Replace
-							InternalCanvas:SetU32(currentPointX, currentPointY, ColourU32)
+						elseif BlendingMode == 1 then -- Replace mode
+							InternalCanvas:SetRGBA(currentPointX, currentPointY, ColR, ColG, ColB, Alpha)
 						end
 
-						seen[key] = true
+						-- Mark as seen
+						buffer.writeu8(seenBuffer, key - 1, 1)
 
-						TableInsert(queue, currentPoint + vectorUp)
-						TableInsert(queue, currentPoint + vectorDown)
-						TableInsert(queue, currentPoint + vectorLeft)
-						TableInsert(queue, currentPoint + vectorRight)
+						-- We'll allocate more buffer space if the queueSize exceeds what we initially gave it.
+						-- This tends to happen whenever a large empty canvas is FloodFilled.
+						if queueEnd >= maxQueueSize then
+							local newQueueBuffer = buffer.create((maxQueueSize * 2) * 2 * 4)
+							buffer.copy(newQueueBuffer, 0, queueBuffer, 0, maxQueueSize * 2 * 4)
+							queueBuffer = newQueueBuffer
+							maxQueueSize = maxQueueSize * 2
+						end
+
+						if queueEnd < maxQueueSize then
+							for i = 0, 3 do
+								local vectorX = buffer.readi32(vectorBuffer, i * 8)
+								local vectorY = buffer.readi32(vectorBuffer, i * 8 + 4)
+								local nextX = currentPointX + vectorX
+								local nextY = currentPointY + vectorY
+
+								-- Only write to the queue if within bounds
+								if queueEnd < maxQueueSize then
+									buffer.writei32(queueBuffer, queueEnd * 8, nextX)
+									buffer.writei32(queueBuffer, queueEnd * 8 + 4, nextY)
+									queueEnd += 1
+								end
+							end
+						else
+							-- Guess that wasn't enough!
+							OutputWarn("FloodFill: Queue buffer overflow prevented.")
+							break
+						end
 					end
 				end
 			end
@@ -1743,14 +1770,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
 		X3, Y3 = CeilN(X3), CeilN(Y3)
-		
+
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
-		
+
 		-- Backwards compatability for pre 4.12 versions
 		if type(Alpha) == "boolean" then
 			Fill = Alpha
 			Alpha = 1
 		end
+		
+		Alpha = Alpha or 1
 
 		local BlendingMode = self.AlphaBlendingMode
 
@@ -1761,7 +1790,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			DrawSimpleLine(X3, Y3, X1, Y1, Colour, Alpha)
 			return
 		end
-		
+
 		local ColourBuffer = buffer.create(4)
 		buffer.writeu8(ColourBuffer, 0, ColR * 255)
 		buffer.writeu8(ColourBuffer, 1, ColG * 255)
@@ -1795,7 +1824,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			-- Pre-clipped scanline bounds
 			local StartX = math.max(1, ax)
 			local EndX = math.min(self.CurrentResX, bx)
-			
+
 			if BlendingMode == 0 then -- Normal
 				if Alpha > 0 then
 					if Alpha < 1 then
@@ -1821,15 +1850,15 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							InternalCanvas:SetRGB(X, Y, R, G, B)
 						end
 					end
-					
+
 				end
-				
+
 			elseif BlendingMode == 1 then -- Replace
 				for X = StartX, EndX do
 					InternalCanvas:SetU32(X, Y, ColourU32)
 				end
 			end
-			
+
 		end
 
 		local function FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
@@ -1865,16 +1894,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 
 		-- Fill triangle
-		if Y2 == Y3 then
-			FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
-		elseif Y1 == Y2 then
-			FillBottomTriangle(X1, Y1, X2, Y2, X3, Y3)
-		else
-			local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
-			FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
-			FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
-		end
+		local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
+		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
+		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
 	end
+
 
 	--[[
 		Draws a 3 point textured triangle with UV offset values
@@ -2296,6 +2320,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local R, G, B, A = ImageData:GetRGBA(RoundSampleX, RoundSampleY)
 					
 					if A == 0 then -- No need to do any calculations for completely transparent pixels
+						SampleY += SampleYStep
 						continue
 					end
 
@@ -2412,49 +2437,45 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		else -- Custom polygon based thick line
 			RoundedCaps = RoundedCaps or type(RoundedCaps) == "nil" -- Ensures if the parameter is empty, its on be default
 
-			local RawRot = math.atan2(X1 - X2, Y1 - Y2)
+			local RawRot = math.atan2(X1 - X2, Y1 - Y2) -- Use distances between each axis
 			local Theta = RawRot
-			
-			local CorrectionFactor = 0.5
-			
+
 			local PiHalf = math.pi / 2
 
-			-- Ensure a positive angle
+			-- Ensure we get an angle that measures up to 360 degrees (also avoids negative numbers)
 			if RawRot < 0 then
 				Theta = math.pi * 2 + RawRot
 			end
 
-			local function CorrectedOffset(X, Y, Angle, Thickness)
-				local OffsetX = math.sin(Angle) * Thickness
-				local OffsetY = math.cos(Angle) * Thickness
+			local Diameter = 1 + (Thickness * 2)
+			local Rounder = (math.pi * 1.5) / Diameter
 
-				OffsetX = OffsetX * (1 - CorrectionFactor / Thickness)
-				OffsetY = OffsetY * (1 - CorrectionFactor / Thickness)
-
-				return X + OffsetX, Y + OffsetY
+			if RoundedCaps then
+				Theta = math.round(Theta / Rounder) * Rounder -- Avoids strange behaviours for the triangle points for the end circles
 			end
 
 			-- Start polygon points
-			local StartCornerX1, StartCornerY1 = CorrectedOffset(X1, Y1, Theta + PiHalf, Thickness + 1)
-			local StartCornerX2, StartCornerY2 = CorrectedOffset(X1, Y1, Theta - PiHalf, Thickness + 1)
+			local StartCornerX1 = math.round(X1 + math.sin(Theta + PiHalf) * Thickness)
+			local StartCornerY1 = math.round(Y1 + math.cos(Theta + PiHalf) * Thickness)
+
+			local StartCornerX2 = math.round(X1 + math.sin(Theta - PiHalf) * Thickness)
+			local StartCornerY2 = math.round(Y1 + math.cos(Theta - PiHalf) * Thickness)
 
 			-- End polygon points
-			local EndCornerX1, EndCornerY1 = CorrectedOffset(X2, Y2, Theta + PiHalf, Thickness + 1)
-			local EndCornerX2, EndCornerY2 = CorrectedOffset(X2, Y2, Theta - PiHalf, Thickness + 1)
+			local EndCornerX1 = math.round(X2 + math.sin(Theta + PiHalf) * Thickness)
+			local EndCornerY1 = math.round(Y2 + math.cos(Theta + PiHalf) * Thickness)
 
-			StartCornerX1, StartCornerY1 = RoundN(StartCornerX1), RoundN(StartCornerY1)
-			StartCornerX2, StartCornerY2 = RoundN(StartCornerX2), RoundN(StartCornerY2)
-			EndCornerX1, EndCornerY1 = RoundN(EndCornerX1), RoundN(EndCornerY1)
-			EndCornerX2, EndCornerY2 = RoundN(EndCornerX2), RoundN(EndCornerY2)
+			local EndCornerX2 = math.round(X2 + math.sin(Theta - PiHalf) * Thickness)
+			local EndCornerY2 = math.round(Y2 + math.cos(Theta - PiHalf) * Thickness)
 
-			-- Draw the two triangles for the line
-			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour, true)
-			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour, true)
+			-- Draw 2 triangles at the start and end corners
+			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour)
+			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour)
 
 			-- Draw rounded caps
 			if RoundedCaps then
-				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour, 1, true)
-				Canvas:DrawCircleXY(X2, Y2, Thickness, Colour, 1, true)
+				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour)
+				Canvas:DrawCircleXY(X2, Y2, Thickness, Colour)
 			end
 		end
 
