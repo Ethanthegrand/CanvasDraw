@@ -1,10 +1,12 @@
+--!native
+
 --[[
 	================== CanvasDraw ===================
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 7/01/2025
-	Version: 4.13.1
+	Last updated: 6/01/2025
+	Version: 4.13.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -1433,102 +1435,71 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	]]
 	function Canvas:FloodFillXY(X: number, Y: number, Colour: Color3, Alpha: number?) -- Optimised by @Arevoir
 		X, Y = CeilN(X), CeilN(Y)
-		local canvasWidth, canvasHeight = self.CurrentResX, self.CurrentResY
-
-		if X < 1 or Y < 1 or X > canvasWidth or Y > canvasHeight then return end
-
+		
+		if X < 1 or Y < 1 or X > self.CurrentResX or Y > self.CurrentResY then return end
+		
 		local OrigR, OrigG, OrigB = self:GetRGB(X, Y)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		Alpha = Alpha or 1
+		
+		local ColourBuffer = buffer.create(4)
+		buffer.writeu8(ColourBuffer, 0, ColR * 255)
+		buffer.writeu8(ColourBuffer, 1, ColG * 255)
+		buffer.writeu8(ColourBuffer, 2, ColB * 255)
+		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
 
+		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		
 		if OrigR == ColR and OrigG == ColG and OrigB == ColB then return end
-
-		-- Whoohoo to Buffers!
-		-- Create a buffer for seen pixels (1 byte per pixel)
-		local seenBuffer = buffer.create(canvasWidth * canvasHeight)
-
-		-- Preallocate queue buffer
-		-- This gets increased dynamically if there's more canvas to fill
-		local maxQueueSize = canvasWidth * canvasHeight * 2
-		local queueBuffer = buffer.create(maxQueueSize * 2 * 4) -- 2 values (X, Y) per queue entry, 4 bytes per number
-
-		-- Insert the first point into the queue
-		buffer.writei32(queueBuffer, 0, X)
-		buffer.writei32(queueBuffer, 4, Y)
-
-		-- Create a buffer for vectorOffsets instead of Vector2s (8 signed ints: 0, -1, 1, 0, 0, 1, -1, 0)
-		local vectorBuffer = buffer.create(8 * 4)
-		-- vectorUp
-		buffer.writei32(vectorBuffer, 0, 0); buffer.writei32(vectorBuffer, 4, -1);
-		-- vectorRight
-		buffer.writei32(vectorBuffer, 8, 1); buffer.writei32(vectorBuffer, 12, 0);
-		-- vectorDown
-		buffer.writei32(vectorBuffer, 16, 0); buffer.writei32(vectorBuffer, 20, 1);
-		-- vectorLeft
-		buffer.writei32(vectorBuffer, 24, -1); buffer.writei32(vectorBuffer, 28, 0);
-
-		local queueStart, queueEnd = 0, 1
+		
 		local BlendingMode = self.AlphaBlendingMode
 
-		while queueStart < queueEnd do
-			local offset = queueStart * 8
-			local currentPointX = buffer.readi32(queueBuffer, offset)
-			local currentPointY = buffer.readi32(queueBuffer, offset + 4)
-			queueStart += 1
+		local seen = {} 
+
+		local vectorUp = Vector2New(0, -1)
+		local vectorRight = Vector2New(1, 0)
+		local vectorDown = Vector2New(0, 1)
+		local vectorLeft = Vector2New(-1, 0)
+
+		local queue = { Vector2New(X, Y) }
+
+		local canvasWidth, canvasHeight = self.CurrentResX, self.CurrentResY
+
+		while #queue > 0 do
+			local currentPoint = table.remove(queue)
+
+			local currentPointX = currentPoint.X
+			local currentPointY = currentPoint.Y
 
 			if currentPointX > 0 and currentPointY > 0 and currentPointX <= canvasWidth and currentPointY <= canvasHeight then
 				local key = currentPointX + (currentPointY - 1) * canvasWidth
 
-				if buffer.readu8(seenBuffer, key - 1) == 0 then
+				if not seen[key] then
 					local R, G, B = InternalCanvas:GetRGB(currentPointX, currentPointY)
 
 					if R == OrigR and G == OrigG and B == OrigB then
-						if BlendingMode == 0 and Alpha ~= 0 then -- Normal blending
+						if BlendingMode == 0 and Alpha ~= 0 then -- Normal
 							local SetR, SetG, SetB = ColR, ColG, ColB
-
-							if Alpha ~= 1 then
+							
+							if Alpha < 1 then
 								local BgR, BgG, BgB = InternalCanvas:GetRGB(currentPointX, currentPointY)
+
 								SetR = Lerp(BgR, ColR, Alpha)
 								SetG = Lerp(BgG, ColG, Alpha)
 								SetB = Lerp(BgB, ColB, Alpha)
 							end
 
 							InternalCanvas:SetRGB(currentPointX, currentPointY, SetR, SetG, SetB)
-						elseif BlendingMode == 1 then -- Replace mode
-							InternalCanvas:SetRGBA(currentPointX, currentPointY, ColR, ColG, ColB, Alpha)
+						elseif BlendingMode == 1 then -- Replace
+							InternalCanvas:SetU32(currentPointX, currentPointY, ColourU32)
 						end
 
-						-- Mark as seen
-						buffer.writeu8(seenBuffer, key - 1, 1)
+						seen[key] = true
 
-						-- We'll allocate more buffer space if the queueSize exceeds what we initially gave it.
-						-- This tends to happen whenever a large empty canvas is FloodFilled.
-						if queueEnd >= maxQueueSize then
-							local newQueueBuffer = buffer.create((maxQueueSize * 2) * 2 * 4)
-							buffer.copy(newQueueBuffer, 0, queueBuffer, 0, maxQueueSize * 2 * 4)
-							queueBuffer = newQueueBuffer
-							maxQueueSize = maxQueueSize * 2
-						end
-
-						if queueEnd < maxQueueSize then
-							for i = 0, 3 do
-								local vectorX = buffer.readi32(vectorBuffer, i * 8)
-								local vectorY = buffer.readi32(vectorBuffer, i * 8 + 4)
-								local nextX = currentPointX + vectorX
-								local nextY = currentPointY + vectorY
-
-								-- Only write to the queue if within bounds
-								if queueEnd < maxQueueSize then
-									buffer.writei32(queueBuffer, queueEnd * 8, nextX)
-									buffer.writei32(queueBuffer, queueEnd * 8 + 4, nextY)
-									queueEnd += 1
-								end
-							end
-						else
-							-- Guess that wasn't enough!
-							OutputWarn("FloodFill: Queue buffer overflow prevented.")
-							break
-						end
+						TableInsert(queue, currentPoint + vectorUp)
+						TableInsert(queue, currentPoint + vectorDown)
+						TableInsert(queue, currentPoint + vectorLeft)
+						TableInsert(queue, currentPoint + vectorRight)
 					end
 				end
 			end
@@ -1816,7 +1787,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local YMin = math.max(1, Y1)
 		local YMax = math.min(self.CurrentResY, Y3)
 
-		local function Plotline(ax, bx, Y, col)
+		local function Plotline(ax, bx, Y)
 			if ax > bx then
 				ax, bx = bx, ax
 			end
@@ -1842,12 +1813,12 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 								B = Lerp(BgB, B, Alpha)
 							end
 
-							InternalCanvas:SetColor3(X, Y, col)
+							InternalCanvas:SetRGB(X, Y, R, G, B)
 						end
 					else
 						-- No need to do complicated blending
 						for X = StartX, EndX do
-							InternalCanvas:SetColor3(X, Y, col)
+							InternalCanvas:SetRGB(X, Y, R, G, B)
 						end
 					end
 					
@@ -1862,8 +1833,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 
 		local function FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
-			local invslope1 = (X2 - X1 + 1) / (Y2 - Y1)
-			local invslope2 = (X3 - X1 + 1) / (Y3 - Y1)
+			local invslope1 = (X2 - X1) / (Y2 - Y1)
+			local invslope2 = (X3 - X1) / (Y3 - Y1)
 
 			local curx1 = X1
 			local curx2 = X1
@@ -1871,7 +1842,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			for scanlineY = math.max(Y1, YMin), math.min(Y2 - 1, YMax) do
 				local ax = math.round(curx1)
 				local bx = math.round(curx2)
-				Plotline(ax, bx, scanlineY, Color3.new(0, 1))
+				Plotline(ax, bx, scanlineY)
 				curx1 += invslope1
 				curx2 += invslope2
 			end
@@ -1887,18 +1858,22 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			for scanlineY = math.max(Y2, YMin), math.min(Y3, YMax) do
 				local ax = math.round(curx1)
 				local bx = math.round(curx2)
-				Plotline(ax, bx, scanlineY, Color3.new(1))
+				Plotline(ax, bx, scanlineY)
 				curx1 += invslope1
 				curx2 += invslope2
 			end
 		end
 
 		-- Fill triangle
-	
-		local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
-		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
-		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
-		
+		if Y2 == Y3 then
+			FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
+		elseif Y1 == Y2 then
+			FillBottomTriangle(X1, Y1, X2, Y2, X3, Y3)
+		else
+			local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
+			FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
+			FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
+		end
 	end
 
 	--[[
@@ -2321,7 +2296,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local R, G, B, A = ImageData:GetRGBA(RoundSampleX, RoundSampleY)
 					
 					if A == 0 then -- No need to do any calculations for completely transparent pixels
-						SampleY += SampleYStep
 						continue
 					end
 
