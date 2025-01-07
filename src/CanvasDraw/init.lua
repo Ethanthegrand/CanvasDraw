@@ -979,12 +979,15 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local StartX = math.max(1, ax)
 			local EndX = math.min(self.CurrentResX, bx)
 
-			
+
 			for X = StartX, EndX do
 				TableInsert(ReturnPoints, Vector2New(X, Y))
 			end
 
 		end
+
+		local OrigX3, OrigX2, OrigX1 = X3, X2, X1
+		local OrigY1, OrigY3 = Y1, Y3
 
 		local function FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
 			local invslope1 = (X2 - X1) / (Y2 - Y1)
@@ -994,8 +997,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local curx2 = X1
 
 			for scanlineY = math.max(Y1, YMin), math.min(Y2 - 1, YMax) do
-				local ax = math.round(curx1)
-				local bx = math.round(curx2)
+				local ax = RoundN(curx1)
+				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
 				curx1 += invslope1
 				curx2 += invslope2
@@ -1009,6 +1012,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local curx1 = X1
 			local curx2 = X2
 
+			if invslope1 >= math.huge then
+				invslope1 = 0
+				invslope2 = 0
+
+				if OrigY1 == OrigY3 then
+					curx1 = OrigX1
+				else
+					curx1 = OrigX2
+				end
+
+				curx2 = OrigX3
+			end
+
 			for scanlineY = math.max(Y2, YMin), math.min(Y3, YMax) do
 				local ax = RoundN(curx1)
 				local bx = RoundN(curx2)
@@ -1019,15 +1035,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 
 		-- Fill triangle
-		if Y2 == Y3 then
-			FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
-		elseif Y1 == Y2 then
-			FillBottomTriangle(X1, Y1, X2, Y2, X3, Y3)
-		else
-			local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
-			FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
-			FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
-		end
+		local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
+
+		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
+		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
 		
 		return ReturnPoints
 	end
@@ -1429,7 +1440,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		This works the same way as a paint bucket tool would on a program like <strong>MS Paint</strong>
 	]]
-	function Canvas:FloodFillXY(X: number, Y: number, Colour: Color3, Alpha: number?) -- Optimised by @Arevoir
+	function Canvas:FloodFillXY(X: number, Y: number, Colour: Color3, Alpha: number?) -- Optimised by @DukeAunarky
 		X, Y = CeilN(X), CeilN(Y)
 		local canvasWidth, canvasHeight = self.CurrentResX, self.CurrentResY
 
@@ -1860,6 +1871,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end
 
 		end
+		
+		local OrigX3, OrigX2, OrigX1 = X3, X2, X1
+		local OrigY1, OrigY3 = Y1, Y3
 
 		local function FillTopTriangle(X1, Y1, X2, Y2, X3, Y3)
 			local invslope1 = (X2 - X1) / (Y2 - Y1)
@@ -1869,8 +1883,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local curx2 = X1
 
 			for scanlineY = math.max(Y1, YMin), math.min(Y2 - 1, YMax) do
-				local ax = math.round(curx1)
-				local bx = math.round(curx2)
+				local ax = RoundN(curx1)
+				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
 				curx1 += invslope1
 				curx2 += invslope2
@@ -1880,13 +1894,26 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local function FillBottomTriangle(X1, Y1, X2, Y2, X3, Y3)
 			local invslope1 = (X3 - X1) / (Y3 - Y1)
 			local invslope2 = (X3 - X2) / (Y3 - Y2)
-
+			
 			local curx1 = X1
 			local curx2 = X2
-
+			
+			if invslope1 >= math.huge then
+				invslope1 = 0
+				invslope2 = 0
+				
+				if OrigY1 == OrigY3 then
+					curx1 = OrigX1
+				else
+					curx1 = OrigX2
+				end
+				
+				curx2 = OrigX3
+			end
+			
 			for scanlineY = math.max(Y2, YMin), math.min(Y3, YMax) do
-				local ax = math.round(curx1)
-				local bx = math.round(curx2)
+				local ax = RoundN(curx1)
+				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
 				curx1 += invslope1
 				curx2 += invslope2
@@ -1895,6 +1922,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		-- Fill triangle
 		local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
+		
 		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
 		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
 	end
