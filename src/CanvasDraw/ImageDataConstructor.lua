@@ -69,12 +69,6 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		return buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255
 	end
 	
-	-- Returns a tuple in order of the pixel's RGB values
-	function ImageData:GetU32(X: number, Y: number): number
-		local PixelBuffer = self.ImageBuffer
-		return buffer.readu32(PixelBuffer, GetIndex(X, Y))
-	end
-	
 	-- Returns a tuple in order of the pixel's RGBA values
 	function ImageData:GetRGBA(X: number, Y: number): (number, number, number, number)
 		local PixelBuffer = self.ImageBuffer
@@ -83,9 +77,37 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		return buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255, buffer.readu8(PixelBuffer, Index + 3) / 255
 	end
 	
+	-- Returns a tuple in order of the pixel's RGB values
+	function ImageData:GetU32(X: number, Y: number): number
+		local PixelBuffer = self.ImageBuffer
+		return buffer.readu32(PixelBuffer, GetIndex(X, Y))
+	end
+	
 	-- Returns a tuple in order of the pixel's alpha value
 	function ImageData:GetAlpha(X: number, Y: number): number
 		return buffer.readu8(self.ImageBuffer, GetIndex(X, Y) + 3) / 255
+	end
+	
+	--[[
+		Returns a buffer of RGBA values ranging from 0 to 255
+		
+		The size of this buffer is equal to <strong>Width × Height × 4</strong>
+	]]
+	function ImageData:GetBuffer(X: number, Y: number): number
+		local PixelBuffer = self.ImageBuffer
+		local ReturnBuffer = buffer.create(ImageDataResX * ImageDataResY * 4)
+		buffer.copy(ReturnBuffer, 0, PixelBuffer)
+		
+		return ReturnBuffer
+	end
+	
+	--[[
+		Takes a buffer of RGBA unsigned 8 bit int values (range from 0 to 255) to render all pixel on the canvas.
+		
+		The size of the buffer is assumed to be <strong>Width × Height × 4</strong>
+	]]
+	function ImageData:SetBuffer(Buffer: buffer)
+		buffer.copy(self.ImageBuffer, 0, Buffer)
 	end
 	
 	-- Tints the image of a colour by a percentage
