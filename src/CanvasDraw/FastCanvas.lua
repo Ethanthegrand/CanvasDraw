@@ -23,8 +23,6 @@ type ParentType = GuiObject | MeshPart
 
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
-local bit32rshift = bit32.rshift
-local bit32band = bit32.band
 
 function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType, Blur: boolean?)
 	local IsUiParent = CanvasParent:IsA("GuiObject")
@@ -126,7 +124,7 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			bit32lshift(B * 255, 16),
 			bit32lshift(G * 255, 8),
 			R * 255
-			)) 
+		)) 
 	end
 	
 	-- Sets the alpha value of a pixel on the canvas
@@ -144,6 +142,12 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 		local Index = GetGridIndex(X, Y)
 
 		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255
+	end
+	
+	function Canvas:GetRGBA(X: number, Y: number): (number, number, number)
+		local Index = GetGridIndex(X, Y)
+
+		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255, buffer.readu8(Grid, Index + 2) / 255
 	end
 	
 	function Canvas:GetU32(X: number, Y: number): number

@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 7/01/2025
-	Version: 4.13.1
+	Last updated: 9/01/2025
+	Version: 4.13.2
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -979,11 +979,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local StartX = math.max(1, ax)
 			local EndX = math.min(self.CurrentResX, bx)
 
-
 			for X = StartX, EndX do
 				TableInsert(ReturnPoints, Vector2New(X, Y))
 			end
-
 		end
 
 		local OrigX3, OrigX2, OrigX1 = X3, X2, X1
@@ -993,10 +991,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local invslope1 = (X2 - X1) / (Y2 - Y1)
 			local invslope2 = (X3 - X1) / (Y3 - Y1)
 
-			local curx1 = X1
-			local curx2 = X1
+			local startY = math.max(Y1, YMin)
+			local endY = math.min(Y2 - 1, YMax)
 
-			for scanlineY = math.max(Y1, YMin), math.min(Y2 - 1, YMax) do
+			local curx1 = X1 + invslope1 * (startY - Y1)
+			local curx2 = X1 + invslope2 * (startY - Y1)
+
+			for scanlineY = startY, endY do
 				local ax = RoundN(curx1)
 				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
@@ -1009,23 +1010,30 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local invslope1 = (X3 - X1) / (Y3 - Y1)
 			local invslope2 = (X3 - X2) / (Y3 - Y2)
 
-			local curx1 = X1
-			local curx2 = X2
+			-- Start and end scanlines adjusted for clipping
+			local startY = math.max(Y2, YMin)
+			local endY = math.min(Y3, YMax)
 
+			-- Adjust starting X positions based on clipping
+			local curx1 = X1 + invslope1 * (startY - Y1)
+			local curx2 = X2 + invslope2 * (startY - Y2)
+
+			-- Handle edge cases for infinite or NaN slopes
 			if invslope1 >= math.huge or invslope1 ~= invslope1 then
 				invslope1 = 0
 				invslope2 = 0
 
+				-- Adjust starting X values if slopes are invalid
 				if OrigY1 == OrigY3 then
 					curx1 = OrigX1
 				else
 					curx1 = OrigX2
 				end
-
 				curx2 = OrigX3
 			end
 
-			for scanlineY = math.max(Y2, YMin), math.min(Y3, YMax) do
+			-- Rasterize the bottom triangle
+			for scanlineY = startY, endY do
 				local ax = RoundN(curx1)
 				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
@@ -1331,6 +1339,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		if Y + ScaledImageResY - 1 > self.CurrentResY then
 			ScaledImageResY -= (Y + ScaledImageResY - 1) - self.CurrentResY
 		end
+		
+		local CurrentStepX, CurrentStepY = 0, 0
+		local StepX = 1 / ScaleX
+		local StepY = 1 / ScaleY
 
 		if not (TransparencyEnabled or type(TransparencyEnabled) == "nil") then
 			if ScaleX == 1 and ScaleY == 1 then
@@ -1347,11 +1359,15 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			else
 				-- Draw normal image with no transparency with scale adjustments (pretty optimal)
 				for ImgX = StartX, ScaledImageResX do
-					local SampleX = CeilN(ImgX / ScaleX)
+					CurrentStepX += StepX
+					local SampleX = CeilN(CurrentStepX)
 					local PlacementX = X + ImgX - 1
-
+					
+					CurrentStepY = 0
+					
 					for ImgY = StartY, ScaledImageResY do
-						local SampleY = CeilN(ImgY / ScaleY)
+						CurrentStepY += StepY
+						local SampleY = CeilN(CurrentStepY)
 						local PlacementY = Y + ImgY - 1
 
 						InternalCanvas:SetU32(PlacementX, PlacementY, ImageData:GetU32(SampleX, SampleY))
@@ -1360,12 +1376,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end	
 		else
 			-- Draw image with transparency (more expensive)
+			local StepX = 1 / ScaleX
+			local StepY = 1 / ScaleY
+			
 			for ImgX = StartX, ScaledImageResX do
-				local SampleX = CeilN(ImgX / ScaleX)
+				CurrentStepX += StepX
+				local SampleX = CeilN(CurrentStepX)
 				local PlacementX = X + ImgX - 1
-
+				
+				CurrentStepY = 0
+				
 				for ImgY = StartY, ScaledImageResY do
-					local SampleY = CeilN(ImgY / ScaleY)
+					CurrentStepY += StepY
+					local SampleY = CeilN(CurrentStepY)
 					local PlacementY = Y + ImgY - 1
 					
 					if BlendingMode == 0 then -- Normal
@@ -1879,10 +1902,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local invslope1 = (X2 - X1) / (Y2 - Y1)
 			local invslope2 = (X3 - X1) / (Y3 - Y1)
 
-			local curx1 = X1
-			local curx2 = X1
+			local startY = math.max(Y1, YMin)
+			local endY = math.min(Y2 - 1, YMax)
 
-			for scanlineY = math.max(Y1, YMin), math.min(Y2 - 1, YMax) do
+			local curx1 = X1 + invslope1 * (startY - Y1)
+			local curx2 = X1 + invslope2 * (startY - Y1)
+
+			for scanlineY = startY, endY do
 				local ax = RoundN(curx1)
 				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
@@ -1894,25 +1920,31 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local function FillBottomTriangle(X1, Y1, X2, Y2, X3, Y3)
 			local invslope1 = (X3 - X1) / (Y3 - Y1)
 			local invslope2 = (X3 - X2) / (Y3 - Y2)
-			
-			local curx1 = X1
-			local curx2 = X2
-			
-			-- Prevent inf or nan numbers
+
+			-- Start and end scanlines adjusted for clipping
+			local startY = math.max(Y2, YMin)
+			local endY = math.min(Y3, YMax)
+
+			-- Adjust starting X positions based on clipping
+			local curx1 = X1 + invslope1 * (startY - Y1)
+			local curx2 = X2 + invslope2 * (startY - Y2)
+
+			-- Handle edge cases for infinite or NaN slopes
 			if invslope1 >= math.huge or invslope1 ~= invslope1 then
 				invslope1 = 0
 				invslope2 = 0
-				
+
+				-- Adjust starting X values if slopes are invalid
 				if OrigY1 == OrigY3 then
 					curx1 = OrigX1
 				else
 					curx1 = OrigX2
 				end
-				
 				curx2 = OrigX3
 			end
-			
-			for scanlineY = math.max(Y2, YMin), math.min(Y3, YMax) do
+
+			-- Rasterize the bottom triangle
+			for scanlineY = startY, endY do
 				local ax = RoundN(curx1)
 				local bx = RoundN(curx2)
 				Plotline(ax, bx, scanlineY)
@@ -2500,7 +2532,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			-- Draw 2 triangles at the start and end corners
 			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour)
 			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour)
-
+			
 			-- Draw rounded caps
 			if RoundedCaps then
 				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour)
