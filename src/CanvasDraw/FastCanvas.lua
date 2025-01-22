@@ -147,7 +147,7 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	function Canvas:GetRGBA(X: number, Y: number): (number, number, number)
 		local Index = GetGridIndex(X, Y)
 
-		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255, buffer.readu8(Grid, Index + 2) / 255
+		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255, buffer.readu8(Grid, Index + 3) / 255
 	end
 	
 	function Canvas:GetU32(X: number, Y: number): number

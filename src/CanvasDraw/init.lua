@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 9/01/2025
-	Version: 4.13.2
+	Last updated: 23/01/2025
+	Version: 4.13.3
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
