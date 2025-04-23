@@ -7,7 +7,7 @@ local RunService = game:GetService("RunService")
 
 local StringCompressor = require(script.Parent:WaitForChild("StringCompressor"))
 
-function SaveObjReader.Read(SaveObject, SlowLoad) -- v4.9.0 and above
+function SaveObjReader.ReadV3(SaveObject, SlowLoad) -- v4.9.0 and above
 	local Resolution = SaveObject:GetAttribute("Resolution")
 	local Width, Height = Resolution.X, Resolution.Y
 	
@@ -89,6 +89,11 @@ function SaveObjReader.ReadV1(SaveObject) -- v2.0.0 to v4.3.2
 	end
 	
 	return PixelBuffer, SaveDataImageResolution.X, SaveDataImageResolution.Y
+end
+
+function SaveObjReader.ReadOSGL(TextureModule) -- OSGL formatted image
+	local Data = require(TextureModule)
+	return Data.pixels, Data.width, Data.height
 end
 
 return SaveObjReader

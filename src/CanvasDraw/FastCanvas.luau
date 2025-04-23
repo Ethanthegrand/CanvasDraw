@@ -53,11 +53,8 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	local EditableImage = AssetService:CreateEditableImage({Size = Resolution})
 
 	if not EditableImage then
-		repeat
-			warn("Failed to create Canvas due to EditableImage memory limit being hit! Retrying in 5 seconds...")
-			EditableImage = AssetService:CreateEditableImage({Size = Resolution})
-			task.wait(5)
-		until EditableImage
+		warn("Failed to create Canvas due to EditableImage memory limit being hit!")
+		return nil
 	end
 
 	local CanvasFrame
@@ -125,7 +122,8 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			bit32lshift(B * 255, 16),
 			bit32lshift(G * 255, 8),
 			R * 255
-		)) 
+			)
+		)
 	end
 	
 	-- Sets the alpha value of a pixel on the canvas
@@ -145,7 +143,7 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255
 	end
 	
-	function Canvas:GetRGBA(X: number, Y: number): (number, number, number)
+	function Canvas:GetRGBA(X: number, Y: number): (number, number, number, number)
 		local Index = GetGridIndex(X, Y)
 
 		return buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255, buffer.readu8(Grid, Index + 3) / 255
@@ -223,9 +221,15 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	function Canvas:Resize(NewWidth, NewHeight)	
 		Width, Height = NewWidth, NewHeight
 		Resolution = Vector2.new(NewWidth, NewHeight)
-		EditableImage:Destroy()
 
 		EditableImage = AssetService:CreateEditableImage({Size = Resolution})
+		
+		if not EditableImage then
+			warn("Failed to resize Canvas due to EditableImage memory limit being hit!")
+			return
+		end
+		
+		EditableImage:Destroy()
 
 		CanvasFrame.ImageContent = Content.fromObject(EditableImage)
 

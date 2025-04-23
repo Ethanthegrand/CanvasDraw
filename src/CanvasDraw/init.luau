@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 26/02/2025
-	Version: 4.14.0
+	Last updated: 24/04/2025
+	Version: 4.15.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -31,12 +31,14 @@
 	   - CanvasDraw.new(Parent, Resolution, CanvasColour?, Blur?) : Canvas
 	      * Constructs and returns a canvas class/object.
 	      * The parent can be the following: 
-	        GuiObject (such as Frame) or MeshPart
+	        GuiObject (such as Frame) or MeshPart, Decal, etc
+	      * NOTE: This may fail to create and return a canvas if a memory limit is exceeded
 	
 	   - CanvasDraw.GetImageData(SaveObject, SlowLoad) : ImageData [YIELDS?]
 	      * Reads the selected SaveObject's compressed ImageData and returns a readable ImageData object
 	      * When SlowLoad is set to true, this method will yield and slowly decompress the SaveObject
 	        to avoid large lag spikes on the client with large images
+	      * OSGL texture modules are compatible
 	      
 	   - CanvasDraw.GetImageDataFromTextureId(TextureId, MaxWidth?, MaxHeight?) : ImageData? [YIELDS]
 	      * Loads the selected roblox texture asset and returns an ImageData class if succeeded.
@@ -53,25 +55,20 @@
 	      * Returns a physical save object (a folder instance) containing compressed ImageData.
 	      * This instance can be stored anywhere in your place and can be loaded into CanvasDraw.
 		  * Intended for plugin use.
-		  * NOTE: The provided ImageData has to be 256x256 or under!
-		  
-	   - CanvasDraw.CreateSaveObjectFromPixels(PixelArray, Width, Height) : Instance
-	      * Same as 'CanvasDraw.CreateSaveObject', but takes an array of RGBA values with
-	        a width and height parameter.
-	      * Intended for plugin use.
-		  * NOTE: The width and height has to be 256x256 or under!
 		  
 	   - CanvasDraw.CompressImageData(ImageData) : CompressedImageData
 	      * Returns a compressed image in the form of a very small table which takes advantage 
 	        of buffers and JSON encoding.
 	      * Very useful with datastores.
-	      * NOTE: Large images may cause slight lag spikes
 	      
 	   - CanvasDraw.DecompressImageData(CompressedImageData) : ImageData
 	      * Decompresses the CompressedImageData object, and converts it back to
 	        the original ImageData object.
 	      * Very useful with datastores.
-	      * NOTE: Large images may cause slight lag spikes
+	      
+	   - CanvasDraw.GetColourU32(R, G, B, A) : number
+	   - CanvasDraw.GetColourU32FromColor3(Color3) : number
+	      * Returns a U32 number which represents a colour (R, G, B, A)
 	      
 	CanvasDraw Properties:
 	
@@ -80,6 +77,17 @@
 	      * Current values are:
 	        > Normal  | 0
 		    > Replace | 1
+		    
+	   - CanvasDraw.Fonts : table
+	      * Enums for the canvas method 'DrawText()'
+	      * Current values are:
+	        > 3x6
+		    > Atari
+		    > Codepage
+		    > CodepageLarge
+		    > GrandCD
+		    > Monogram
+		    > Round
 	
 	Canvas Properties:
 	
@@ -147,7 +155,6 @@
 	      * An array will also be returned containing all pixel points that were used to fill with.
 	      * NOTE: This function is not very fast! Do not use for real-time engines
 	   
-	   - Canvas:SetPixel(X, Y, Colour)
 	   - Canvas:SetRGB(X, Y, R, G, B)
 	   - Canvas:SetRGBA(X, Y, R, G, B, A)
 	   - Canvas:SetAlpha(X, Y, Alpha)
@@ -169,8 +176,8 @@
 	   - Canvas:DrawTriangleXY(X1, Y1, X2, Y2, X3, Y3, Colour, Fill?)
 	      * Draws a plain triangle from three points on the canvas.
 	  
-	   - Canvas:DrawImage(ImageData, Point?, Scale?, TransparencyEnabled?)
-	   - Canvas:DrawImageXY(ImageData, X?, Y?, ScaleX?, ScaleY?, TransparencyEnabled?)
+	   - Canvas:DrawImage(ImageData, Point?, Scale?, TransparencyBlending?)
+	   - Canvas:DrawImageXY(ImageData, X?, Y?, ScaleX?, ScaleY?, TransparencyBlending?)
 	      * Draws an image to the canvas from ImageData with optional scaling.
 	      * Supports alpha blending when the 'TransparencyEnabled' parameter is set to true.
 	      
@@ -212,15 +219,7 @@
 	      * Draws text to the canvas with a bitmap font. 
 	      * Great for having pixel-perfect text.
 	      * Great for debugging.
-	      * There are currently 7 fonts that can be used which can be found in the 
-	        'Fonts' folder under the main module:
-	            - 3x6
-	            - Atari
-	            - Codepage
-	            - CodepageLarge
-	            - GrandCD
-	            - Monogram
-	            - Round
+	      * There are currently 7 fonts that can be used from 'CanvasDraw.Fonts'
 	
 	 
 	Canvas Fetch Methods:
@@ -328,6 +327,16 @@ CanvasDraw.BlendingModes = {
 	Replace = 1
 }
 
+CanvasDraw.Fonts = {
+	["3x2"] = "3x2",
+	["Atari"] = "Atari",
+	["Codepage"] = "Codepage",
+	["CodepageLarge"] = "CodepageLarge",
+	["GrandCD"] = "GrandCD",
+	["Monogram"] = "Monogram",
+	["Round"] = "Round",
+}
+
 -- These variables are only accessed by this module [DO NOT EDIT!]
 local SaveObjectResolutionLimit = Vector2.new(1024, 1024)
 local ChunkLimit = 120000 -- Ensures our strings will stay under 200 KB
@@ -344,6 +353,9 @@ local Vector2New = Vector2.new
 local CeilN = math.ceil
 local FloorN = math.floor
 local ClampN = math.clamp
+local Lerp = math.lerp
+local bit32bor = bit32.bor
+local bit32lshift = bit32.lshift
 
 --== BUILT-IN FUNCTIONS ==--
 
@@ -369,10 +381,6 @@ end
 
 local function XYToPixelIndex(X, Y, ResolutionX)
 	return X + (Y - 1) * ResolutionX
-end
-
-local function Lerp(A, B, T)
-	return A + (B - A) * T
 end
 
 type ParentType = GuiObject | MeshPart | Decal | Texture
@@ -489,6 +497,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	local OnRenderedBindable = Instance.new("BindableEvent")
 	OnRenderedBindable.Name = "OnRenderedEvent"
 	OnRenderedBindable.Parent = EventsFolder
+	
+	local CanvasSetU32 = InternalCanvas.SetU32
+	local CanvasSetRGB = InternalCanvas.SetRGB
+	local CanvasSetRGBA = InternalCanvas.SetRGBA
+	
+	local CanvasGetRGB = InternalCanvas.GetRGB
+	local CanvasGetU32 = InternalCanvas.GetU32
 
 	-- Canvas events
 
@@ -519,21 +534,15 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	
 	-- Helper functions
 	
-	local function DrawSimpleLine(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?)
+	local function DrawSimpleLine(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number)
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
 
 		local R, G, B = Colour.R, Colour.G, Colour.B
 		local BlendingMode = Canvas.AlphaBlendingMode
 		local ResX, ResY = Canvas.CurrentResX, Canvas.CurrentResY
-		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, R * 255)
-		buffer.writeu8(ColourBuffer, 1, G * 255)
-		buffer.writeu8(ColourBuffer, 2, B * 255)
-		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
 
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		local ColourU32 = CanvasDraw.GetColourU32(R, G, B, Alpha)
 
 		local sx, sy, dx, dy
 
@@ -633,7 +642,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		else
 			OutputWarn("Canvas:SetBlur() is currently only avaialable for canvases parented to a GuiObject!")
 		end
-		
 	end
 
 	-- Fills the whole canvas with a colour
@@ -1305,7 +1313,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		Use <code>Canvas:SetBufferFromImage()</code> for a super performant alternative.
 	]]
-	function Canvas:DrawImageXY(ImageData: {}, X: number?, Y: number?, ScaleX: number?, ScaleY: number?, TransparencyEnabled: boolean?)
+	function Canvas:DrawImageXY(ImageData: {}, X: number?, Y: number?, ScaleX: number?, ScaleY: number?, TransparencyBlending: boolean?)
 		X = X or 1
 		Y = Y or 1
 		ScaleX = ScaleX or 1
@@ -1343,8 +1351,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local CurrentStepX, CurrentStepY = 0, 0
 		local StepX = 1 / ScaleX
 		local StepY = 1 / ScaleY
+		
+		local GetImgU32 = ImageData.GetU32
+		local GetImgRGBA = ImageData.GetRGBA
 
-		if not (TransparencyEnabled or type(TransparencyEnabled) == "nil") then
+		if not TransparencyBlending then
 			if ScaleX == 1 and ScaleY == 1 then
 				-- Draw normal image with no transparency and no scale adjustments (most optimal)
 				for ImgX = StartX, ScaledImageResX do
@@ -1353,7 +1364,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					for ImgY = StartY, ScaledImageResY do
 						local PlacementY = Y + ImgY - 1
 
-						InternalCanvas:SetU32(PlacementX, PlacementY, ImageData:GetU32(ImgX, ImgY))
+						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, ImgX, ImgY))
 					end
 				end
 			else
@@ -1370,7 +1381,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 						local SampleY = CeilN(CurrentStepY)
 						local PlacementY = Y + ImgY - 1
 
-						InternalCanvas:SetU32(PlacementX, PlacementY, ImageData:GetU32(SampleX, SampleY))
+						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, SampleX, SampleY))
 					end
 				end
 			end	
@@ -1392,23 +1403,23 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local PlacementY = Y + ImgY - 1
 					
 					if BlendingMode == 0 then -- Normal
-						local ImgR, ImgG, ImgB, ImgA = ImageData:GetRGBA(SampleX, SampleY)
+						local ImgR, ImgG, ImgB, ImgA = GetImgRGBA(ImageData, SampleX, SampleY)
 						
 						if ImgA == 0 then -- No need to do any calculations for completely transparent pixels
 							continue
 						end
 
 						if ImgA < 1 then
-							local BgR, BgG, BgB = InternalCanvas:GetRGB(PlacementX, PlacementY)
+							local BgR, BgG, BgB = CanvasGetRGB(Canvas, PlacementX, PlacementY)
 							
 							ImgR = Lerp(BgR, ImgR, ImgA)
 							ImgG = Lerp(BgG, ImgG, ImgA)
 							ImgB = Lerp(BgB, ImgB, ImgA)
 						end
 						
-						InternalCanvas:SetRGB(PlacementX, PlacementY, ImgR, ImgG, ImgB)
+						CanvasSetRGB(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB)
 					elseif BlendingMode == 1 then -- Replace
-						InternalCanvas:SetU32(PlacementX, PlacementY, ImageData:GetU32(SampleX, SampleY))
+						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(SampleX, SampleY))
 					end
 				end
 			end
@@ -1422,13 +1433,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		Use <code>Canvas:SetBufferFromImage()</code> for a super performant alternative.
 	]]
-	function Canvas:DrawImage(ImageData: {}, Point: Vector2?, Scale: Vector2?, TransparencyEnabled: boolean?)
+	function Canvas:DrawImage(ImageData: {}, Point: Vector2?, Scale: Vector2?, TransparencyBlending: boolean?)
 		Point = Point or Vector2.new(1, 1)
 		Scale = Scale or Vector2.new(1, 1)
 
 		Point = RoundPoint(Point)
 
-		Canvas:DrawImageXY(ImageData, Point.X, Point.Y, Scale.X, Scale.Y, TransparencyEnabled)
+		Canvas:DrawImageXY(ImageData, Point.X, Point.Y, Scale.X, Scale.Y, TransparencyBlending)
 	end
 	
 	--[[
@@ -1474,16 +1485,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		Alpha = Alpha or 1
-		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
 
-		local ColU32 = buffer.readu32(ColourBuffer, 0)
+		local ColU32 = 	CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
-		if OrigR == ColR and OrigG == ColG and OrigB == ColB then return end
+		if OrigU32 == ColU32 then return end
 
 		-- Whoohoo to Buffers!
 		-- Create a buffer for seen pixels (1 byte per pixel)
@@ -1522,7 +1527,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				local key = currentPointX + (currentPointY - 1) * canvasWidth
 
 				if buffer.readu8(seenBuffer, key - 1) == 0 then
-					local CurrentU32 = InternalCanvas:GetU32(currentPointX, currentPointY)
+					local CurrentU32 = CanvasGetU32(InternalCanvas, currentPointX, currentPointY)
 
 					if OrigU32 == CurrentU32 then
 						if BlendingMode == 0 and Alpha ~= 0 then -- Normal blending
@@ -1535,9 +1540,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 								SetB = Lerp(BgB, ColB, Alpha)
 							end
 
-							InternalCanvas:SetRGB(currentPointX, currentPointY, SetR, SetG, SetB)
+							CanvasSetRGB(InternalCanvas, currentPointX, currentPointY, SetR, SetG, SetB)
 						elseif BlendingMode == 1 then -- Replace mode
-							InternalCanvas:SetU32(currentPointX, currentPointY, ColU32)
+							CanvasSetU32(InternalCanvas, currentPointX, currentPointY, ColU32)
 						end
 
 						-- Mark as seen
@@ -1602,7 +1607,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		return InternalCanvas:SetBuffer(PixelBuffer)
 	end
 
-
 	-- Draws a circle with a radius to the canvas from the middle
 	function Canvas:DrawCircle(Point: Vector2, Radius: number, Colour: Color3, Alpha: number?, Fill: boolean?)
 		Canvas:DrawCircleXY(Point.X, Point.Y, Radius, Colour, Alpha, Fill)
@@ -1625,13 +1629,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
 		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
-		
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
 		-- Draw the circle
 
@@ -1646,20 +1644,20 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				local B = ColB
 				
 				if Alpha < 1 then
-					local BgR, BgG, BgB = InternalCanvas:GetRGB(DrawX, DrawY)
+					local BgR, BgG, BgB = CanvasGetRGB(Canvas, DrawX, DrawY)
 
 					R = Lerp(BgR, R, Alpha)
 					G = Lerp(BgG, G, Alpha)
 					B = Lerp(BgB, B, Alpha)
 				end
 
-				InternalCanvas:SetRGB(DrawX, DrawY, R, G, B)
+				CanvasSetRGB(Canvas, DrawX, DrawY, R, G, B)
 			elseif BlendingMode == 1 then -- Replace
-				InternalCanvas:SetU32(DrawX, DrawY, ColourU32)
+				CanvasSetU32(Canvas, DrawX, DrawY, ColourU32)
 			end
 		end
 
-		local function CreateLineForCircle(EndX, StartX, Y)
+		local function CreateLineForCircle(StartX, EndX, Y)
 			-- Rectangles have built in clipping
 			self:DrawRectangleXY(StartX, Y, EndX, Y, Colour, Alpha, true)
 		end
@@ -1761,36 +1759,30 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							local B = ColB
 
 							if Alpha < 1 then
-								local BgR, BgG, BgB = InternalCanvas:GetRGB(PlotX, PlotY)
+								local BgR, BgG, BgB = CanvasGetRGB(Canvas, PlotX, PlotY)
 
 								R = Lerp(BgR, R, Alpha)
 								G = Lerp(BgG, G, Alpha)
 								B = Lerp(BgB, B, Alpha)
 							end
 
-							InternalCanvas:SetRGB(PlotX, PlotY, R, G, B)
+							CanvasSetRGB(Canvas, PlotX, PlotY, R, G, B)
 						end
 					end
 				else
 					-- Fast fill
 					for PlotX = StartX, RangeX do
 						for PlotY = StartY, RangeY do
-							InternalCanvas:SetRGB(PlotX, PlotY, ColR, ColG, ColB)
+							CanvasSetRGB(PlotX, PlotY, ColR, ColG, ColB)
 						end
 					end
 				end
 			elseif BlendingMode == 1 then -- Replace
-				local ColourBuffer = buffer.create(4)
-				buffer.writeu8(ColourBuffer, 0, ColR * 255)
-				buffer.writeu8(ColourBuffer, 1, ColG * 255)
-				buffer.writeu8(ColourBuffer, 2, ColB * 255)
-				buffer.writeu8(ColourBuffer, 3, Alpha * 255)
-
-				local ColourU32 = buffer.readu32(ColourBuffer, 0)
+				local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 				
 				for PlotX = StartX, RangeX do
 					for PlotY = StartY, RangeY do
-						InternalCanvas:SetU32(PlotX, PlotY, ColourU32)
+						CanvasSetU32(Canvas, PlotX, PlotY, ColourU32)
 					end
 				end
 			end
@@ -1835,13 +1827,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			return
 		end
 
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, Alpha * 255)
-
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
 		local R, G, B = Colour.R, Colour.G, Colour.B
 
@@ -1879,19 +1865,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							local B = ColB
 
 							if Alpha < 1 then
-								local BgR, BgG, BgB = InternalCanvas:GetRGB(X, Y)
+								local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
 
 								R = Lerp(BgR, R, Alpha)
 								G = Lerp(BgG, G, Alpha)
 								B = Lerp(BgB, B, Alpha)
 							end
 
-							InternalCanvas:SetRGB(X, Y, R, G, B)
+							CanvasSetRGB(Canvas, X, Y, R, G, B)
 						end
 					else
 						-- No need to do complicated blending
 						for X = StartX, EndX do
-							InternalCanvas:SetRGB(X, Y, R, G, B)
+							CanvasSetRGB(Canvas, X, Y, R, G, B)
 						end
 					end
 
@@ -1899,7 +1885,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 			elseif BlendingMode == 1 then -- Replace
 				for X = StartX, EndX do
-					InternalCanvas:SetU32(X, Y, ColourU32)
+					CanvasSetU32(Canvas, X, Y, ColourU32)
 				end
 			end
 
@@ -2037,6 +2023,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		du2_step = du2 / math.abs(dy2)
 		dv2_step = dv2 / math.abs(dy2)
+		
+		local ImgGetRGBA = ImageData.GetRGBA
+		local ImgGetU32 = ImageData.GetU32
 
 		local function Plotline(ax, bx, tex_su, tex_eu, tex_sv, tex_ev, Y, IsBot)
 			if ax > bx then
@@ -2086,24 +2075,24 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local SampleY = ClampN(FloorN(TexV), 1, TexResY)
 					
 					local DrawX = ax + j
-
-					local R, G, B, A = ImageData:GetRGBA(SampleX, SampleY)
 					
-					if Brightness < 1 then
-						R *= Brightness
-						G *= Brightness
-						B *= Brightness
-					end
+					local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
 					
 					if BlendingMode == 0 then -- Normal
-						local R, G, B, A = ImageData:GetRGBA(SampleX, SampleY)
-
 						if A > 0 then
-							InternalCanvas:SetRGB(DrawX, Y, R, G, B)
+							R *= Brightness
+							G *= Brightness
+							B *= Brightness
+							
+							CanvasSetRGB(InternalCanvas, DrawX, Y, R, G, B)
 						end
 
 					elseif BlendingMode == 1 then -- Replace
-						InternalCanvas:SetU32(DrawX, Y, ImageData:GetU32(SampleX, SampleY))
+						R *= Brightness
+						G *= Brightness
+						B *= Brightness
+
+						CanvasSetRGBA(InternalCanvas, DrawX, Y, R, G, B, A)
 					end
 
 					-- Increment UV values
@@ -2119,14 +2108,14 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local DrawX = ax + j
 
 					if BlendingMode == 0 then -- Normal
-						local R, G, B, A = ImageData:GetRGBA(SampleX, SampleY)
+						local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
 						
 						if A > 0 then
-							InternalCanvas:SetRGB(DrawX, Y, R, G, B)
+							CanvasSetRGB(InternalCanvas, DrawX, Y, R, G, B)
 						end
 						
 					elseif BlendingMode == 1 then -- Replace
-						InternalCanvas:SetU32(DrawX, Y, ImageData:GetU32(SampleX, SampleY))
+						CanvasSetU32(InternalCanvas, DrawX, Y, ImgGetU32(ImageData, SampleX, SampleY))
 					end
 
 					-- Increment UV values
@@ -2317,7 +2306,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		RectOffset and RectSize are in pixels relative to the image
 	]]
-	function Canvas:DrawImageRectXY(ImageData: {}, X: number, Y: number, 
+	function Canvas:DrawImageRectXY(ImageData, X: number, Y: number, 
 		RectOffsetX: number, RectOffsetY: number, RectSizeX: number, RectSizeY: number, 
 		ScaleX: number?, ScaleY: number?, FlipX: boolean?, FlipY: boolean?
 	) -- Contributed by @DukeAunarky
@@ -2328,6 +2317,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		X, Y = CeilN(X), CeilN(Y)
 		RectOffsetX, RectOffsetY = FloorN(RectOffsetX), FloorN(RectOffsetY)
 		RectSizeX, RectSizeY = CeilN(RectSizeX), CeilN(RectSizeY)
+		
+		local ImgGetRGBA = ImageData.GetRGBA
+		local ImgGetU32 = ImageData.GetU32
 
 		local ImageSizeX, ImageSizeY = ImageData.Width, ImageData.Height
 		local ImageScaledSizeX, ImageScaledSizeY = math.floor(ImageSizeX * ScaleX), math.floor(ImageSizeY * ScaleY)
@@ -2388,7 +2380,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				end
 
 				if BlendingMode == 0 then -- Normal
-					local R, G, B, A = ImageData:GetRGBA(RoundSampleX, RoundSampleY)
+					local R, G, B, A = ImgGetRGBA(ImageData, RoundSampleX, RoundSampleY)
 					
 					if A == 0 then -- No need to do any calculations for completely transparent pixels
 						SampleY += SampleYStep
@@ -2396,16 +2388,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					end
 
 					if A < 1 then
-						local BgR, BgG, BgB = InternalCanvas:GetRGB(DrawX, DrawY)
+						local BgR, BgG, BgB = CanvasGetRGB(InternalCanvas, DrawX, DrawY)
 						
 						R = Lerp(BgR, R, A)
 						G = Lerp(BgG, G, A)
 						B = Lerp(BgB, B, A)
 					end
 
-					InternalCanvas:SetRGB(DrawX, DrawY, R, G, B)
+					CanvasSetRGB(InternalCanvas, DrawX, DrawY, R, G, B)
 				elseif BlendingMode == 1 then -- Replace
-					InternalCanvas:SetU32(DrawX, DrawY, ImageData:GetU32(RoundSampleX, RoundSampleY))
+					CanvasSetU32(InternalCanvas, DrawX, DrawY, ImgGetU32(ImageData, RoundSampleX, RoundSampleY))
 				end
 
 				SampleY += SampleYStep
@@ -2448,13 +2440,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		local BlendingMode = self.AlphaBlendingMode
 		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, 255)
-
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
 
 		if not Thickness or Thickness < 1 then -- Bresenham line
 			X1, Y1 = CeilN(X1), CeilN(Y1)
@@ -2483,9 +2469,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local function PlotPixel()
 				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
 					if BlendingMode == 0 then -- Normal
-						InternalCanvas:SetRGB(X1, Y1, ColR, ColG, ColB)
+						CanvasSetRGB(Canvas, X1, Y1, ColR, ColG, ColB)
 					elseif BlendingMode == 1 then -- Replace
-						InternalCanvas:SetU32(X1, Y1, ColourU32)
+						CanvasSetU32(Canvas, X1, Y1, ColourU32)
 					end
 				end
 			end
@@ -2557,9 +2543,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		If the text string contains '\n' a new line of text will appear under the previous line
 		
-		All current fonts can be found under: <strong><code>CanvasDraw > Fonts</code></strong>
+		All current fonts can be found under: <strong><code>CanvasDraw.Fonts</code></strong>
 		
-		<strong>FontName:</strong>
+		<strong>CanvasDraw.Font.</strong>
 		<strong>- 3x6</strong>
 		<strong>- Atari</strong>
 		<strong>- Codepage</strong>
@@ -2573,13 +2559,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		
-		local ColourBuffer = buffer.create(4)
-		buffer.writeu8(ColourBuffer, 0, ColR * 255)
-		buffer.writeu8(ColourBuffer, 1, ColG * 255)
-		buffer.writeu8(ColourBuffer, 2, ColB * 255)
-		buffer.writeu8(ColourBuffer, 3, 255)
-
-		local ColourU32 = buffer.readu32(ColourBuffer, 0)
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
 		
 		local FontModule = FontsFolder:FindFirstChild(FontName or "3x6")
 
@@ -2683,9 +2663,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 							if BitBand(BitRshift(Row, OrigCharWidth - SampleX), 1) == 1 then
 								if BlendingMode == 0 then -- Normal
-									InternalCanvas:SetRGB(PlacementX, PlacementY, ColR, ColG, ColB)
+									CanvasSetRGB(InternalCanvas, PlacementX, PlacementY, ColR, ColG, ColB)
 								elseif BlendingMode == 1 then -- Replace
-									InternalCanvas:SetU32(PlacementX, PlacementY, ColourU32)
+									CanvasSetU32(InternalCanvas, PlacementX, PlacementY, ColourU32)
 								end
 							end
 						end
@@ -2697,14 +2677,14 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 	end
 
-		--[[
+	--[[
 		Draws text to the canvas with bitmap font rendering.
 		
 		If the text string contains '\n' a new line of text will appear under the previous line
 		
-		All current fonts can be found under: <strong><code>CanvasDraw > Fonts</code></strong>
+		All current fonts can be found under: <strong><code>CanvasDraw.Fonts</code></strong>
 		
-		<strong>FontName:</strong>
+		<strong>CanvasDraw.Font.</strong>
 		<strong>- 3x6</strong>
 		<strong>- Atari</strong>
 		<strong>- Codepage</strong>
@@ -2765,7 +2745,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 	end
 	
-	-- <strong>DEPRECATED</strong>. Use <code>Canvas:SetRGB()</code> or <code>Canvas:SetPixel()</code> for new work!
+	-- <strong>DEPRECATED</strong>. Use <code>Canvas:SetRGBA()</code> or <code>Canvas:SetPixel()</code> for new work!
 	function Canvas:DrawPixel(Point: Vector2, Colour: Color3): Vector2
 		local X = CeilN(Point.X)
 		local Y = CeilN(Point.Y)
@@ -2777,6 +2757,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	end
 
 	return Canvas
+end
+
+function CanvasDraw.GetColourU32(R: number, G: number, B: number, A: number): number
+	return bit32bor(
+		bit32lshift(A * 255, 24),
+		bit32lshift(B * 255, 16),
+		bit32lshift(G * 255, 8),
+		R * 255
+	)
+end
+
+function CanvasDraw.GetColourU32FromColor3(Colour: Color3, Alpha: number?): number
+	return CanvasDraw.GetColourU32(Colour.R, Colour.G, Colour.B, Alpha or 1)
 end
 
 
@@ -2796,13 +2789,16 @@ function CanvasDraw.GetImageData(SaveObject: Instance, SlowLoad: boolean?)
 	-- Backwards compatability
 	if SaveObject:GetAttribute("Resolution") and SaveObject:FindFirstChild("Chunk1") then
 		-- Modern SaveObject (v3)
-		PixelArray, Width, Height = SaveObjectReader.Read(SaveObject, SlowLoad)
+		PixelArray, Width, Height = SaveObjectReader.ReadV3(SaveObject, SlowLoad)
 	elseif SaveObject:GetAttribute("Colour") then
 		-- Legacy SaveObject (v2)
 		PixelArray, Width, Height = SaveObjectReader.ReadV2(SaveObject)
 	elseif SaveObject:GetAttribute("ImageColours") then
 		-- Legacy SaveObject (v1)
 		PixelArray, Width, Height = SaveObjectReader.ReadV1(SaveObject)
+	elseif SaveObject:IsA("ModuleScript") then
+		-- OSGL image object
+		PixelArray, Width, Height = SaveObjectReader.ReadOSGL(SaveObject)
 	else
 		error("CanvasDraw Module Error | " .. SaveObject.Name .. " is not a valid SaveObject!")
 	end
@@ -2895,7 +2891,7 @@ end
 	
 	<em>Intended for plugin use</em>
 ]]
-function CanvasDraw.CreateSaveObject(ImageData): Folder
+function CanvasDraw.CreateSaveObject(ImageData): Texture
 	local Chunks = {{}}
 
 	local Width = ImageData.Width
@@ -2933,7 +2929,7 @@ function CanvasDraw.CreateSaveObject(ImageData): Folder
 	end
 
 	-- Create the save object
-	local NewSaveObject = Instance.new("Folder")
+	local NewSaveObject = Instance.new("Texture")
 	NewSaveObject.Name = "NewSave"
 
 	-- Compress the pixel data
@@ -2948,17 +2944,39 @@ function CanvasDraw.CreateSaveObject(ImageData): Folder
 	end
 
 	NewSaveObject:SetAttribute("Resolution", Vector2.new(ImageData.Width, ImageData.Height))
+	NewSaveObject:SetAttribute("Version", 0)
 
 	return NewSaveObject
 end
 
---[[
-	Takes an array of RGBA number values and creates a CanvasDraw SaveObject instance, which can be stored in your place.
-	
-	The size of this array is assumed to be equal to <strong>Width × Height × 4</strong>
-	
-	<em>Intended for plugin use</em>
-]]
+-- Compresses and converts an ImageData object into a smaller datastore compatible object
+function CanvasDraw.CompressImageData(ImageData)
+	local PixelBuffer = ImageData.ImageBuffer
+	local Width, Height = ImageData.Width, ImageData.Height
+
+	-- Compress the pixel data
+	local CompressedPixels = HttpService:JSONEncode(PixelBuffer)
+
+	-- Create the data object
+	local CompressedData = {}
+	CompressedData.Pixels = CompressedPixels
+	CompressedData.Width = Width
+	CompressedData.Height = Height
+
+	return CompressedData
+end
+
+-- Creates and returns an ImageData object from CompressedImageData
+function CanvasDraw.DecompressImageData(CompressedImageData)
+	local PixelArray = HttpService:JSONDecode(CompressedImageData.Pixels)
+	local Width, Height = CompressedImageData.Width, CompressedImageData.Height
+
+	return ImageDataConstructor.new(Width, Height, PixelArray)
+end
+
+--== DEPRECATED FUNCTIONS/METHODS/EVENTS ==--
+
+-- <strong>DEPRECATED</strong>
 function CanvasDraw.CreateSaveObjectFromPixels(PixelArray: {number}, Width: number, Height: number): Folder
 	local Chunks = {{}}
 
@@ -3011,34 +3029,6 @@ function CanvasDraw.CreateSaveObjectFromPixels(PixelArray: {number}, Width: numb
 
 	return NewSaveObject
 end
-
-
--- Compresses and converts an ImageData object into a smaller datastore compatible object
-function CanvasDraw.CompressImageData(ImageData)
-	local PixelBuffer = ImageData.ImageBuffer
-	local Width, Height = ImageData.Width, ImageData.Height
-
-	-- Compress the pixel data
-	local CompressedPixels = HttpService:JSONEncode(PixelBuffer)
-
-	-- Create the data object
-	local CompressedData = {}
-	CompressedData.Pixels = CompressedPixels
-	CompressedData.Width = Width
-	CompressedData.Height = Height
-
-	return CompressedData
-end
-
--- Creates and returns an ImageData object from CompressedImageData
-function CanvasDraw.DecompressImageData(CompressedImageData)
-	local PixelArray = HttpService:JSONDecode(CompressedImageData.Pixels)
-	local Width, Height = CompressedImageData.Width, CompressedImageData.Height
-
-	return ImageDataConstructor.new(Width, Height, PixelArray)
-end
-
---== DEPRECATED FUNCTIONS/METHODS/EVENTS ==--
 
 -- <strong>DEPRECATED</strong>. Use ImageData:GetPixel() instead
 function CanvasDraw.GetPixelFromImage(ImageData, Point: Vector2): (Color3, number)
