@@ -21,15 +21,6 @@ local function deepCopy(original)
 	return copy
 end
 
-local function deepFreeze(tbl)
-	table.freeze(tbl)
-	for _, v in pairs(tbl) do
-		if type(v) == "table" then
-			deepFreeze(v)
-		end
-	end
-end
-
 function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	local ImageData = {
 		ImageBuffer = Buffer,
@@ -37,6 +28,8 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		Width = ImageDataResX,
 		Height = ImageDataResY,
 	}
+	
+	local ImageDataType = type(ImageData)
 
 	local function GetIndex(X, Y)
 		return (X + (Y - 1) * ImageDataResX) * 4 - 4
@@ -176,13 +169,8 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	end
 	
 	-- Returns a deep copy of the ImageData object
-	function ImageData:Clone()
+	function ImageData:Clone(): typeof(ImageData)
 		return deepCopy(ImageData)
-	end
-	
-	-- Freezes and prevents the ImageData from being written to
-	function ImageData:Freeze()
-		deepFreeze(ImageData)
 	end
 
 	return ImageData
