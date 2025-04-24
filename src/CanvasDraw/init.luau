@@ -1773,7 +1773,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					-- Fast fill
 					for PlotX = StartX, RangeX do
 						for PlotY = StartY, RangeY do
-							CanvasSetRGB(PlotX, PlotY, ColR, ColG, ColB)
+							CanvasSetRGB(InternalCanvas, PlotX, PlotY, ColR, ColG, ColB)
 						end
 					end
 				end
@@ -1782,7 +1782,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				
 				for PlotX = StartX, RangeX do
 					for PlotY = StartY, RangeY do
-						CanvasSetU32(Canvas, PlotX, PlotY, ColourU32)
+						CanvasSetU32(InternalCanvas, PlotX, PlotY, ColourU32)
 					end
 				end
 			end
