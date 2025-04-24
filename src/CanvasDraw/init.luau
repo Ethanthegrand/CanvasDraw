@@ -1782,7 +1782,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				
 				for PlotX = StartX, RangeX do
 					for PlotY = StartY, RangeY do
-						CanvasSetU32(InternalCanvas, PlotX, PlotY, ColourU32)
+						CanvasSetU32(Canvas, PlotX, PlotY, ColourU32)
 					end
 				end
 			end
