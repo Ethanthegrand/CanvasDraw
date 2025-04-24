@@ -12,7 +12,7 @@
 	Written by @Ethanthegrand14
 	
 	Created: 9/11/2023
-	Last Updated: 26/02/2025
+	Last Updated: 24/04/2025
 ]]
 
 local AssetService = game:GetService("AssetService")
@@ -225,17 +225,18 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	end
 
 	function Canvas:Resize(NewWidth, NewHeight)	
-		Width, Height = NewWidth, NewHeight
-		Resolution = Vector2.new(NewWidth, NewHeight)
-
-		EditableImage = AssetService:CreateEditableImage({Size = Resolution})
+		local NewEditableImage = AssetService:CreateEditableImage({Size = Vector2.new(NewWidth, NewHeight)})
 		
 		if not EditableImage then
 			warn("Failed to resize Canvas due to EditableImage memory limit being hit!")
 			return
 		end
 		
+		Width, Height = NewWidth, NewHeight
+		Resolution = Vector2.new(NewWidth, NewHeight)
+
 		EditableImage:Destroy()
+		EditableImage = NewEditableImage
 
 		CanvasFrame.ImageContent = Content.fromObject(EditableImage)
 
