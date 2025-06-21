@@ -394,7 +394,7 @@ type ParentType = GuiObject | MeshPart | Decal | Texture
 	
 	Resolution limit is currently 1024x1024
 ]]
-function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: Color3?, Blur: boolean?)
+function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: Color3?, Blur: boolean?, NO_UIAspectRatioConstraint: boolean?)
 	local Canvas = {
 		-- Modifyable properties
 		OutputWarnings = true,
@@ -453,7 +453,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	local ResX = Canvas.CurrentResX
 	local ResY = Canvas.CurrentResY
 
-	local InternalCanvas = FastCanvas.new(ResX, ResY, Parent, Blur)
+	local InternalCanvas = FastCanvas.new(ResX, ResY, Parent, Blur, NO_UIAspectRatioConstraint)
 
 	Canvas.CurrentCanvasFrame = Parent
 
