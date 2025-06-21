@@ -24,7 +24,7 @@ type ParentType = GuiObject | MeshPart | Decal | Texture
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
 
-function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType, Blur: boolean?)
+function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType, Blur: boolean?, NO_UIAspectRatioConstraint: boolean?)
 	local IsUiParent = CanvasParent:IsA("GuiObject")
 
 	local Canvas = {} -- The canvas object
@@ -72,10 +72,13 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 		if not Blur then
 			CanvasFrame.ResampleMode = Enum.ResamplerMode.Pixelated
 		end
-
-		AspectRatio = Instance.new("UIAspectRatioConstraint")
-		AspectRatio.AspectRatio = Width / Height
-		AspectRatio.Parent = CanvasFrame
+		
+		if not NO_UIAspectRatioConstraint then
+			AspectRatio = Instance.new("UIAspectRatioConstraint")
+			AspectRatio.AspectRatio = Width / Height
+			AspectRatio.Parent = CanvasFrame
+		end
+		
 
 		CanvasFrame.ImageContent = Content.fromObject(EditableImage)
 		CanvasFrame.Parent = CanvasParent
