@@ -4,4 +4,8 @@
 
 **CanvasDraw** is a fast and powerful graphics library for Roblox utilising EditableImage.
 
+https://github.com/user-attachments/assets/c29668bd-808b-43a3-ae80-c49fa3812ce4
+
+https://github.com/user-attachments/assets/eb8e7dcd-f7a4-4ea5-9608-0db7acb184ed
+
 You can read more about the asset [here!](https://devforum.roblox.com/t/1624633)
