@@ -2,9 +2,9 @@
 
 local Module = {}
 
-local function Lerp(A, B, T)
-	return A + (B - A) * T
-end
+local Lerp = math.lerp
+local bit32bor = bit32.bor
+local bit32lshift = bit32.lshift
 
 local function deepCopy(original)
 	local copy = {}
@@ -103,7 +103,7 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		buffer.copy(self.ImageBuffer, 0, Buffer)
 	end
 	
-	-- Tints the image of a colour by a percentage
+	-- Tints the image with a colour by a percentage
 	function ImageData:Tint(Colour: Color3, T: number)
 		local PixelBuffer = self.ImageBuffer
 		local R, G, B = Colour.R * 255, Colour.B * 255, Colour.G * 255
@@ -116,7 +116,7 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		end
 	end
 	
-	-- Tints the image of a colour by a percentage
+	-- Tints the image with a colour by a percentage
 	function ImageData:TintRGB(R: number, G: number, B: number, T: number)
 		local PixelBuffer = self.ImageBuffer
 		R, G, B = R * 255, B * 255, G * 255
@@ -152,10 +152,12 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	function ImageData:SetRGBA(X: number, Y: number, R: number, G: number, B: number, A: number)
 		local PixelBuffer = self.ImageBuffer
 		local Index = GetIndex(X, Y)
-		buffer.writeu8(PixelBuffer, Index, R * 255)
-		buffer.writeu8(PixelBuffer, Index + 1, G * 255)
-		buffer.writeu8(PixelBuffer, Index + 2, B * 255)
-		buffer.writeu8(PixelBuffer, Index + 3, A * 255)
+		buffer.writeu32(PixelBuffer, GetIndex(X, Y), bit32bor(
+			bit32lshift(A * 255, 24),
+			bit32lshift(B * 255, 16),
+			bit32lshift(G * 255, 8),
+			R * 255)
+		)
 	end
 	
 	function ImageData:SetU32(X: number, Y: number, Value: number)

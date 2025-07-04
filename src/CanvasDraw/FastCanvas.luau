@@ -12,7 +12,7 @@
 	Written by @Ethanthegrand14
 	
 	Created: 9/11/2023
-	Last Updated: 24/04/2025
+	Last Updated: 3/07/2025
 ]]
 
 local AssetService = game:GetService("AssetService")
@@ -121,8 +121,7 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			bit32lshift(A * 255, 24),
 			bit32lshift(B * 255, 16),
 			bit32lshift(G * 255, 8),
-			R * 255
-			)
+			R * 255)
 		)
 	end
 	
@@ -182,6 +181,34 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	function Canvas:SetBuffer(Buffer: buffer)
 		buffer.copy(Grid, 0, Buffer)
 	end
+	
+	function Canvas:SetBufferLine(ColourU32, X1, X2, Y)
+		if X1 > X2 then
+			X1, X2 = X2, X1
+		end
+		
+		-- Clipping
+		X1 = math.floor(math.clamp(X1, 1, Width))
+		X2 = math.floor(math.clamp(X2, 1, Width))
+		Y = math.floor(math.clamp(Y, 1, Height))
+		
+		local StartIndex = (X1 + (Y - 1) * Width) * 4 - 4
+		local EndIndex = (X2 + (Y - 1) * Width) * 4
+
+		local Length = EndIndex - StartIndex
+		local SizeStep = 4
+		local Iterations = math.ceil(math.log(Length / 4, 2))
+
+		Canvas:SetU32(X1, Y, ColourU32) -- Initial pixel to copy
+		
+		-- Copy until we fill the scanline
+		for _ = 1, Iterations do
+			local Count = math.min(SizeStep, Length - SizeStep)
+
+			buffer.copy(Grid, StartIndex + SizeStep, Grid, StartIndex, Count)
+			SizeStep += Count
+		end
+	end
 
 	function Canvas:GetGrid(): {number}
 		local ReturnArray = {}
@@ -201,18 +228,30 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	end
 
 	function Canvas:SetClearRGBA(R, G, B, A)
-		R *= 255
-		G *= 255
-		B *= 255
-		A *= 255
+		local ClearColU32 = bit32bor(
+			bit32lshift(A * 255, 24),
+			bit32lshift(B * 255, 16),
+			bit32lshift(G * 255, 8),
+			R * 255
+		)
+		
+		for Y = 1, Height do
+			local StartIndex = (1 + (Y - 1) * Width) * 4 - 4
+			local EndIndex = (Width + (Y - 1) * Width) * 4
 
-		buffer.writeu8(CurrentClearRGBA, 0, R)
-		buffer.writeu8(CurrentClearRGBA, 1, G)
-		buffer.writeu8(CurrentClearRGBA, 2, B)
-		buffer.writeu8(CurrentClearRGBA, 3, A)
+			local Length = EndIndex - StartIndex
+			local SizeStep = 4
+			local Iterations = math.ceil(math.log(Length / 4, 2))
 
-		for i = 0, Width * Height * 4 - 1, 4 do
-			buffer.writeu32(ClearingGrid, i, buffer.readu32(CurrentClearRGBA, 0))
+			buffer.writeu32(ClearingGrid, GetGridIndex(1, Y), ClearColU32) -- Initial pixel to copy
+
+			-- Copy until we fill the scanline
+			for _ = 1, Iterations do
+				local Count = math.min(SizeStep, Length - SizeStep)
+
+				buffer.copy(ClearingGrid, StartIndex + SizeStep, ClearingGrid, StartIndex, Count)
+				SizeStep += Count
+			end
 		end
 	end
 

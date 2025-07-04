@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 24/04/2025
-	Version: 4.15.0
+	Last updated: 4/07/2025
+	Version: 4.16.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -25,6 +25,10 @@
 
 --[[
 	============== QUICK API REFERENCE ==============
+
+	====================================================================================================================
+	CanvasDraw
+	====================================================================================================================
 
 	CanvasDraw Functions:
 	
@@ -88,8 +92,22 @@
 		    > GrandCD
 		    > Monogram
 		    > Round
+		    
+	====================================================================================================================
+	Canvas
+	====================================================================================================================
 	
 	Canvas Properties:
+	
+	   - AutoRender : boolean
+	      * Determines whether the canvas will automatically update and render the pixels on the canvas every frame.
+	      * Set this property to false and call the Canvas:Render() method to manually update and render the canvas.
+	      * Use Canvas.AutoRenderFpsLimit to set a refresh limit when enabled.
+	      * Defaults to true.
+	      
+	   - AutoRenderFpsLimit : number
+	      * The FPS limit for the AutoRender property on the canvas.
+	      * Defaults to 0 (No limit).
 	
 	   - AlphaBlendingMode : number
 	      * Allows for shapes, images and certain draw methods to blend with the canvas transparency differently.
@@ -100,16 +118,6 @@
 	      * Determines whether any warning messages will appear in the output if something is out of place 
 	        or not working correctly according to the canvas.
 	      * Defaults to true.
-	   
-	   - AutoRender : boolean
-	      * Determines whether the canvas will automatically update and render the pixels on the canvas every frame.
-	      * Set this property to false and call the Canvas:Render() method to manually update and render the canvas.
-	      * Use Canvas.AutoRenderFpsLimit to set a refresh limit when enabled.
-	      * Defaults to true.
-	      
-	   - AutoRenderFpsLimit : number
-	      * The FPS limit for the AutoRender property on the canvas.
-	      * Defaults to 0 (No limit).
 	      
 	   - Canvas.GridTransparency : number
 	      * Sets the pixel grid overlay from 0 to 1.
@@ -131,18 +139,12 @@
 	      * The current height of the canvas.
 	      
 	  
-	  
 	Canvas Drawing Methods:
-	
-	   - Canvas:SetGrid(PixelArray)
-	      * Sets the canvas pixels with an array of RGBA values
-	      * NOTE: The size of the array has to be equal to: Width * Height * 4
 	      
 	   - Canvas:SetBuffer(PixelBuffer)
 	      * Sets the canvas pixels with a buffer of RGBA values
 	      * NOTE: The size of the buffer has to be equal to: Width * Height * 4
 		
-	   - Canvas:FillRGBA(R, G, B, A)
 	   - Canvas:Fill(Colour, Alpha)
 	      * Replaces every pixel on the canvas with a colour
 	   
@@ -150,34 +152,30 @@
 	      * Replaces every current pixel on the canvas with the canvas colour
 	
 	   - Canvas:FloodFill(Point, Colour, Alpha?)
-	   - Canvas:FloodFillXY(X, Y, Colour, Alpha?)
 	      * This function will fill an area of pixels on the canvas of the specific colour that your point is on.
 	      * An array will also be returned containing all pixel points that were used to fill with.
 	      * NOTE: This function is not very fast! Do not use for real-time engines
 	   
 	   - Canvas:SetRGB(X, Y, R, G, B)
 	   - Canvas:SetRGBA(X, Y, R, G, B, A)
+	   - Canvas:SetU32(X, Y, ColourU32)
 	   - Canvas:SetAlpha(X, Y, Alpha)
+	   - Canvas:SetPixel(X, Y, Color3)
 	      * Places a pixel on the canvas
 	      
 	   - Canvas:DrawLine(PointA, PointB, Colour, Thickness?, RoundedCaps?)
-	   - Canvas:DrawLineXY(X1, Y1, X2, Y2, Colour, Thickness?, RoundedCaps?)
 	      * Draws a simple pixel line from two points on the canvas.
 	      
 	   - Canvas:DrawCircle(Point, Radius, Colour, Alpha?, Fill?)
-	   - Canvas:DrawCircleXY(X, Y, Radius, Colour, Alpha?, Fill?)
 	      * Draws a circle at a desired point with a set radius and colour.
 	  
 	   - Canvas:DrawRectangle(PointA, PointB, Colour, Alpha?, Fill?)
-	   - Canvas:DrawRectangleXY(X1, Y1, X2, Y2, Colour, Alpha?, Fill?)
 	      * Draws a simple rectangle shape from point A (top left) to point B (bottom right).
 	  
 	   - Canvas:DrawTriangle(PointA, PointB, PointC, Colour, Fill?)
-	   - Canvas:DrawTriangleXY(X1, Y1, X2, Y2, X3, Y3, Colour, Fill?)
 	      * Draws a plain triangle from three points on the canvas.
 	  
 	   - Canvas:DrawImage(ImageData, Point?, Scale?, TransparencyBlending?)
-	   - Canvas:DrawImageXY(ImageData, X?, Y?, ScaleX?, ScaleY?, TransparencyBlending?)
 	      * Draws an image to the canvas from ImageData with optional scaling.
 	      * Supports alpha blending when the 'TransparencyEnabled' parameter is set to true.
 	      
@@ -187,13 +185,11 @@
 		  * NOTE: The image's resolution has to be the same as the canvas' resolution.
 	      
 	   - Canvas:DrawRotatedImage(ImageData, Angle, Point?, PivotPoint?, Scale?)
-	   - Canvas:DrawRotatedImageXY(ImageData, Angle, X?, Y?, PivotX?, PivotY?, ScaleX?, ScaleY?)
 	      * Draws a rotated image to the canvas with a given angle with a pivoting point.
 	        a pivot of (0, 0) will draw and rotate the image from the top left, and a pivot point of (1, 1)
 	        will do it from the bottom right corner.
 	        
 	   - Canvas:DrawImageRect(ImageData, Point, RectOffset, RectSize, Scale?, FlipX?, FlipY?)
-	   - Canvas:DrawImageRectXY(ImageData, X, Y, RectOffsetX, RectOffsetY, RectSizeX, RectSizeY, ScaleX?, ScaleY?, FlipX?, FlipY?)
 	      * Draws an image to the canvas with a rect offset and rect size properties.
 	      * RectSize and RectOffset are in pixels.
 	      * Intended for image cropping or use with spritesheets.
@@ -201,7 +197,6 @@
 	        Great for tile-based character animations.
 	     
 	   - Canvas:DrawTexturedTriangle(PointA, PointB, PointC, UV1, UV2, UV3, ImageData, Brightness?)
-	   - Canvas:DrawTexturedTriangleXY(X1, Y1, X2, Y2, X3, Y3, U1, V1, U2, V2, U3, V3, ImageData, Brightness?)
 	      * Draws a textured triangle at three points from a given ImageData and UV coordinates.
 	      * UV coordinates range from a scale of 0 to 1 for each axis. 
 	        (0, 0 is top left, and 1, 1 is bottom right)
@@ -209,13 +204,11 @@
 	      * Supports transparency, but not alpha blending.
 	     
 	   - Canvas:DrawDistortedImage(PointA, PointB, PointC, PointD, ImageData, Brightness?)
-	   - Canvas:DrawDistortedImageXY(X1, Y1, X2, Y2, X3, Y3, X4, Y4, ImageData, Brightness?)
 	      * Draws a four point textured quad/plane which can be scaled dynamically
 	      * This can be used for 3D rendering or rotating, stretching, skewing or warping 2D images.
 	      * Supports transparency, but not alpha blending.
 	     
 	   - Canvas:DrawText(Text, Point, Colour, FontName?, Alignment?, Scale?, Wrap?, Spacing?)
-	   - Canvas:DrawTextXY(Text, X, Y, Colour, FontName?, Alignment?, Scale?, Wrap?, Spacing?)
 	      * Draws text to the canvas with a bitmap font. 
 	      * Great for having pixel-perfect text.
 	      * Great for debugging.
@@ -229,6 +222,7 @@
 	   - Canvas:GetRGB(X, Y) : number, number, number
 	   - Canvas:GetRGBA(X, Y) : number, number, number, number
 	   - Canvas:GetAlpha(X, Y) : number
+	   - Canvas:GetU32(X, Y)
 	      * Returns the chosen pixel from the canvas
 	   
 	   - Canvas:GetCirclePoints(Point, Radius, Fill) : {Vector2}
@@ -236,11 +230,8 @@
 	   - Canvas:GetRectanglePoints(PointA, PointB, Fill) : {Vector2}
 	   - Canvas:GetTrianglePoints(PointA, PointB, PointC, Fill) : {Vector2}
 	     * Returns an array of canvas pixel points from a shape
-	   
-	   - Canvas:GetGrid() : {number}
-	      * Returns all the pixels on the canvas in the form of an RGBA array
 	      
-	    - Canvas:GetBuffer() : buffer
+	   - Canvas:GetBuffer() : buffer
 	      * Returns all the pixels on the canvas in the form of an RGBA buffer
 	   
 	   - Canvas:GetMousePoint() : Vector2? [CLIENT/PLUGIN ONLY]
@@ -261,22 +252,7 @@
 	   
 	   - Canvas:CreateImageDataFromCanvas(PointA?, PointB?) : ImageData
 	      * Returns an ImageData class/table from the canvas pixels from PointA to PointB or the whole canvas.
-	        
-	        
-	ImageData Properties:
-	
-	   - ImageData.Width : number [READ ONLY]
-	      * The width of the image in pixels.
-	   
-	   - ImageData.Height : number [READ ONLY]
-	      * The height of the image in pixels.
-	   
-	   - ImageData.ImageResolution : Vector2 [READ ONLY]
-	     * A vector of the width and height of the image in pixels.
-	     
-	   - ImageData.ImageBuffer : buffer [READ ONLY]
-	      * The buffer object that stores the pixels for the image.
-	      
+	         
 	   
 	Other Canvas Methods:
 	
@@ -288,6 +264,10 @@
 	      * NOTE: All contents will be cleared. 
 	        If you want to scale the canvas content, you will have to redraw 
 	        the image after resizing
+	        
+	   - Canvas:SetBlur()
+	     * Toggles canvas image blurring
+	     * (only available when canvas is parented to a GuiObject)
 	      
 	   - Canvas:Destroy()
 	      * Destroys the canvas and all data related
@@ -301,7 +281,54 @@
 	      * Fires whenever the canvas renders automatically.
 	      * Canvas.AutoRenderFpsLimit will affect this event
 	      * This event will never fire automatically if 'Canvas.AutoRender' is set to 'false'
+	
+	====================================================================================================================
+	ImageData
+	====================================================================================================================
+	
+	ImageData Methods:
+	   
+	   - ImageData:SetPixel(X, Y, Colour, Alpha)
+	   - ImageData:SetRGB(X, Y, R, G, B)
+	   - ImageData:SetRGBA(X, Y, R, G, B, A)
+	   - ImageData:SetAlpha(X, Y, A)
+	   - ImageData:SetU32(X, Y, ColourU32)
+	      * Draws a pixel to the image
+	   
+	   - ImageData:GetPixel(Point) : Color3
+	   - ImageData:GetPixelXY(X, Y) : Color3
+	   - ImageData:GetRGB(X, Y) : number, number, number
+	   - ImageData:GetRGBA(X, Y) : number, number, number, number
+	   - ImageData:GetAlpha(X, Y) : number
+	   - ImageData:GetU32(X, Y)
+	      * Returns the chosen pixel from the image
 	      
+	   - ImageData:Tint(Colour, T)
+	   - ImageData:TintRGB(R, G, B, T)
+	      * Tints the image of a colour by a percentage
+	      
+	   - ImageData:SetBuffer(PixelBuffer)
+	      * Sets the image pixels with a buffer of RGBA values
+	      * These RGBA values are intergers which can range from 0 to 255
+	      * NOTE: The size of the buffer has to be equal to: Width * Height * 4
+	      
+	   - ImageData:GetBuffer() : buffer
+	      * Returns all the pixels on the canvas in the form of an RGBA buffer
+	
+	
+	ImageData Properties:
+	
+	   - ImageData.Width : number [READ ONLY]
+	      * The width of the image in pixels.
+	   
+	   - ImageData.Height : number [READ ONLY]
+	      * The height of the image in pixels.
+	   
+	   - ImageData.ImageResolution : Vector2 [READ ONLY]
+	     * A vector of the width and height of the image in pixels.
+	     
+	   - ImageData.ImageBuffer : buffer [READ ONLY]
+	      * The buffer object that stores the pixels for the image.    
 
 ]]
 
@@ -312,7 +339,7 @@ local HttpService = game:GetService("HttpService")
 local GuiService = game:GetService("GuiService")
 
 -- Modules
-local FastCanvas = require(script:WaitForChild("FastCanvas")) -- Credits to BoatBomber
+local FastCanvas = require(script:WaitForChild("FastCanvas"))
 local StringCompressor = require(script:WaitForChild("StringCompressor")) -- Credits to 1waffle1 and BoatBomber
 local FontsFolder = script:WaitForChild("Fonts")
 local VectorFuncs = require(script:WaitForChild("VectorFuncs")) -- Credits to Krystaltinan
@@ -390,7 +417,7 @@ type ParentType = GuiObject | MeshPart | Decal | Texture
 -- Canvas functions
 
 --[[
-	Creates and returns a new canvas object that can be parented to either a GuiObject, or a MeshPart.
+	Creates and returns a new canvas object that can be parented to either a GuiObject (such as a frame), Decal, Texture or MeshPart.
 	
 	Resolution limit is currently 1024x1024
 ]]
@@ -402,7 +429,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		GridTransparency = 1,
 		GridColour = Color3.new(1, 1, 1),
 		AutoRenderFpsLimit = 0,
-		AlphaBlendingMode = 0,
+		AlphaBlendingMode = CanvasDraw.BlendingModes.Replace,
 		
 		-- Read only
 		Resolution = Vector2New(100, 100),
@@ -534,6 +561,30 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	
 	-- Helper functions
 	
+	local function DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColU32)
+		local BlendingMode = Canvas.AlphaBlendingMode
+		
+		if BlendingMode == 0 and Alpha > 0 then 
+			-- Normal blending
+			StartX = math.clamp(StartX, 1, ResX)
+			EndX = math.clamp(EndX, 1, ResX)
+			Y = math.clamp(Y, 1, ResY)
+			
+			for X = StartX, EndX do
+				local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
+
+				local R = Lerp(BgR, ColR, Alpha)
+				local G = Lerp(BgG, ColG, Alpha)
+				local B = Lerp(BgB, ColB, Alpha)
+
+				CanvasSetRGB(Canvas, X, Y, R, G, B)
+			end
+		elseif BlendingMode == 1 then
+			-- Replace mode
+			InternalCanvas:SetBufferLine(ColU32, StartX, EndX, Y)
+		end
+	end
+	
 	local function DrawSimpleLine(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number)
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
@@ -635,7 +686,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		EventsFolder:Destroy()
 	end
 	
-	-- Changes the canvas's internal ImageLabel to either have the resample mode set to blur, or pixelated	
+	-- Changes the canvas' internal ImageLabel to either have the resample mode set to blur, or pixelated	
 	function Canvas:SetBlur(Enabled: boolean)
 		if UiFrameMode then
 			InternalCanvas.ImageLabel.ResampleMode = (Enabled and Enum.ResamplerMode.Default) or Enum.ResamplerMode.Pixelated
@@ -643,24 +694,33 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			OutputWarn("Canvas:SetBlur() is currently only avaialable for canvases parented to a GuiObject!")
 		end
 	end
+	
+	-- Changes the canvas pixel contents to stretch to fit or maintain aspect ratio when parented to GuiObject.
+	function Canvas:SetSretchToFit(Enabled: boolean)
+		if UiFrameMode then
+			local OldAspectRatio = InternalCanvas.ImageLabel:FindFirstChildOfClass("UIAspectRatioConstraint")
+			
+			if not Enabled and not OldAspectRatio then
+				local AspectRatio = Instance.new("UIAspectRatioConstraint")
+				AspectRatio.AspectRatio = self.CurrentResX / self.CurrentResY
+				AspectRatio.Parent = InternalCanvas.ImageLabel
+			elseif Enabled and OldAspectRatio then
+				OldAspectRatio:Destroy()
+			end
+		else
+			OutputWarn("Canvas:SetSretchToFit() is currently only avaialable for canvases parented to a GuiObject!")
+		end
+	end
 
 	-- Fills the whole canvas with a colour
-	function Canvas:FillRGBA(R: number, G: number, B: number, A: number)
+	function Canvas:FillRGBA(R: number, G: number, B: number, A: number?)
+		A = A or 1
 		local Width, Height = self.CurrentResX, self.CurrentResY
+		local ColU32 = CanvasDraw.GetColourU32(R, G, B, A)
 		
-		local FillBuffer = buffer.create(Width * Height * 4)
-		local ColourBuffer = buffer.create(Width * Height * 4)
-		
-		buffer.writeu8(ColourBuffer, 0, R * 255)
-		buffer.writeu8(ColourBuffer, 1, G * 255)
-		buffer.writeu8(ColourBuffer, 2, B * 255)
-		buffer.writeu8(ColourBuffer, 3, A * 255)
-
-		for i = 0, Width * Height * 4 - 1, 4 do
-			buffer.writeu32(FillBuffer, i, buffer.readu32(ColourBuffer, 0))
+		for Y = 1, Height do
+			DrawScanline(1, Width, Y, R, G, B, A, ColU32)
 		end
-		
-		InternalCanvas:SetBuffer(FillBuffer)
 	end
 	
 	function Canvas:Fill(Colour: Color3, Alpha: number?)
@@ -731,14 +791,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	Canvas.GetAlpha = InternalCanvas.GetAlpha
 	Canvas.GetU32 = InternalCanvas.GetU32
 
-	--[[
-		Returns an array of RGBA values ranging from 0 to 1
-		
-		The size of this array is equal to <strong>Width × Height × 4</strong>
-	]]
-	function Canvas:GetGrid(): {number}
-		return InternalCanvas:GetGrid()
-	end
 
 	--[[
 		Returns a buffer of RGBA values ranging from 0 to 255
@@ -1590,15 +1642,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	Canvas.SetU32 = InternalCanvas.SetU32
 
 	--[[
-		Takes an array of RGBA values (ranging from 0 to 1) to render all pixel on the canvas.
-		
-		The size of the array is assumed to be <strong>Width × Height × 4</strong>
-	]]
-	function Canvas:SetGrid(PixelArray: {number})
-		return InternalCanvas:SetGrid(PixelArray)
-	end
-
-	--[[
 		Takes a buffer of RGBA unsigned 8 bit int values (range from 0 to 255) to render all pixel on the canvas.
 		
 		The size of the buffer is assumed to be <strong>Width × Height × 4</strong>
@@ -1657,11 +1700,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end
 		end
 
-		local function CreateLineForCircle(StartX, EndX, Y)
-			-- Rectangles have built in clipping
-			self:DrawRectangleXY(StartX, Y, EndX, Y, Colour, Alpha, true)
-		end
-
 		if Fill or type(Fill) == "nil" then
 			-- Iterate over each row of the bounding box
 			for y = -Radius, Radius do
@@ -1672,7 +1710,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				local startX = math.ceil(-HorizontalRadius) -- Round up to avoid gaps
 				local endX = math.floor(HorizontalRadius)  -- Round down to avoid gaps
 			
-				CreateLineForCircle(X + startX, X + endX, rowY)
+				DrawScanline(X + startX, X + endX, rowY, ColR, ColG, ColB, Alpha, ColourU32)
 			end
 		else
 			local dx, dy, err = Radius, 0, 1 - Radius
@@ -1715,6 +1753,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	-- Draws a simple rectangle from PointA to PointB
 	function Canvas:DrawRectangleXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Fill: boolean?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
 
 		local BlendingMode = self.AlphaBlendingMode
 		
@@ -1749,42 +1788,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		if Fill or type(Fill) == "nil" then
 			-- Fill every pixel
-			if BlendingMode == 0 then -- Normal
-				if Alpha < 1 then
-					-- Alpha blend fill
-					for PlotX = StartX, RangeX do
-						for PlotY = StartY, RangeY do
-							local R = ColR
-							local G = ColG
-							local B = ColB
-
-							if Alpha < 1 then
-								local BgR, BgG, BgB = CanvasGetRGB(Canvas, PlotX, PlotY)
-
-								R = Lerp(BgR, R, Alpha)
-								G = Lerp(BgG, G, Alpha)
-								B = Lerp(BgB, B, Alpha)
-							end
-
-							CanvasSetRGB(Canvas, PlotX, PlotY, R, G, B)
-						end
-					end
-				else
-					-- Fast fill
-					for PlotX = StartX, RangeX do
-						for PlotY = StartY, RangeY do
-							CanvasSetRGB(InternalCanvas, PlotX, PlotY, ColR, ColG, ColB)
-						end
-					end
-				end
-			elseif BlendingMode == 1 then -- Replace
-				local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
-				
-				for PlotX = StartX, RangeX do
-					for PlotY = StartY, RangeY do
-						CanvasSetU32(Canvas, PlotX, PlotY, ColourU32)
-					end
-				end
+			for PlotY = StartY, RangeY do
+				DrawScanline(StartX, RangeX, PlotY, ColR, ColG, ColB, Alpha, ColourU32)
 			end
 		else
 			-- Just draw the outlines (using solid rectangles)
@@ -1855,40 +1860,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local StartX = math.max(1, ax)
 			local EndX = math.min(self.CurrentResX, bx)
 
-			if BlendingMode == 0 then -- Normal
-				if Alpha > 0 then
-					if Alpha < 1 then
-						-- Blend
-						for X = StartX, EndX do
-							local R = ColR
-							local G = ColG
-							local B = ColB
-
-							if Alpha < 1 then
-								local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
-
-								R = Lerp(BgR, R, Alpha)
-								G = Lerp(BgG, G, Alpha)
-								B = Lerp(BgB, B, Alpha)
-							end
-
-							CanvasSetRGB(Canvas, X, Y, R, G, B)
-						end
-					else
-						-- No need to do complicated blending
-						for X = StartX, EndX do
-							CanvasSetRGB(Canvas, X, Y, R, G, B)
-						end
-					end
-
-				end
-
-			elseif BlendingMode == 1 then -- Replace
-				for X = StartX, EndX do
-					CanvasSetU32(Canvas, X, Y, ColourU32)
-				end
-			end
-
+			DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColourU32)
 		end
 		
 		local OrigX3, OrigX2, OrigX1 = X3, X2, X1
@@ -2699,6 +2671,20 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	end
 
 	--== DEPRECATED METHODS ==--
+	
+	--[[
+		<strong>DEPRECATED</strong>. Use Canavs:GetBuffer() instead for new work
+	]]
+	function Canvas:GetGrid(): {number}
+		return InternalCanvas:GetGrid()
+	end
+	
+	--[[
+		<strong>DEPRECATED</strong>. Use Canavs:SetBuffer() instead for new work
+	]]
+	function Canvas:SetGrid(PixelArray: {number})
+		return InternalCanvas:SetGrid(PixelArray)
+	end
 
 	-- <strong>DEPRECATED</strong>. Do not use for new work!
 	function Canvas:GetPixels(PointA: Vector2?, PointB: Vector2?): {Color3}
