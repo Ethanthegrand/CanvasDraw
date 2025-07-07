@@ -696,7 +696,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	end
 	
 	-- Changes the canvas pixel contents to stretch to fit or maintain aspect ratio when parented to GuiObject.
-	function Canvas:SetSretchToFit(Enabled: boolean)
+	function Canvas:SetStretchToFit(Enabled: boolean)
 		if UiFrameMode then
 			local OldAspectRatio = InternalCanvas.ImageLabel:FindFirstChildOfClass("UIAspectRatioConstraint")
 			
@@ -708,7 +708,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				OldAspectRatio:Destroy()
 			end
 		else
-			OutputWarn("Canvas:SetSretchToFit() is currently only avaialable for canvases parented to a GuiObject!")
+			OutputWarn("Canvas:SetStretchToFit() is currently only avaialable for canvases parented to a GuiObject!")
 		end
 	end
 
