@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 4/07/2025
-	Version: 4.16.0
+	Last updated: 15/07/2025
+	Version: 4.16.1
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -73,6 +73,12 @@
 	   - CanvasDraw.GetColourU32(R, G, B, A) : number
 	   - CanvasDraw.GetColourU32FromColor3(Color3) : number
 	      * Returns a U32 number which represents a colour (R, G, B, A)
+	      
+	   - CanvasDraw.GetRGBAFromColourU32(ColourU32) : number, number, number, number
+	   - CanvasDraw.GetRGBFromColourU32(ColourU32) : number, number, number
+	      * Returns a tuple of the RGBA number values
+	        from a U32 number (which can be used to represent an RGBA colour)
+	      * The returned colour channels each range from 0 to 1
 	      
 	CanvasDraw Properties:
 	
@@ -256,6 +262,10 @@
 	   
 	Other Canvas Methods:
 	
+	   - Canvas:SetStretchToFit(Enable?)
+	      * Determines wether or not the canvas should maintain it's aspect ratio, or stretch the pixels to fit the parent
+	      * NOTE: Only currently works when canvas is parented a GuiObject (such as a Frame)
+	
 	   - Canvas:SetClearRGBA(R, G, B, A)
 	      * Changes the clearing colour that is used when calling 'Canvas:Clear()'
 	
@@ -383,6 +393,8 @@ local ClampN = math.clamp
 local Lerp = math.lerp
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
+local bit32band = bit32.band
+local bit32rshift = bit32.rshift
 
 --== BUILT-IN FUNCTIONS ==--
 
@@ -1471,7 +1483,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 						
 						CanvasSetRGB(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB)
 					elseif BlendingMode == 1 then -- Replace
-						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(SampleX, SampleY))
+						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, SampleX, SampleY))
 					end
 				end
 			end
@@ -2535,8 +2547,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		local FontModule = FontsFolder:FindFirstChild(FontName or "3x6")
 
-		local BitBand, BitRshift = bit32.band, bit32.rshift
-
 		if not FontModule then
 			error("(!) '" .. FontName .. "' is not a valid CanvasDraw font!")
 			return
@@ -2633,7 +2643,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 							SampleX = CeilN(SampleX / Scale)
 
-							if BitBand(BitRshift(Row, OrigCharWidth - SampleX), 1) == 1 then
+							if bit32band(bit32rshift(Row, OrigCharWidth - SampleX), 1) == 1 then
 								if BlendingMode == 0 then -- Normal
 									CanvasSetRGB(InternalCanvas, PlacementX, PlacementY, ColR, ColG, ColB)
 								elseif BlendingMode == 1 then -- Replace
@@ -2756,6 +2766,23 @@ end
 
 function CanvasDraw.GetColourU32FromColor3(Colour: Color3, Alpha: number?): number
 	return CanvasDraw.GetColourU32(Colour.R, Colour.G, Colour.B, Alpha or 1)
+end
+
+function CanvasDraw.GetRGBAFromColourU32(ColourU32: number)
+	local R = bit32band(ColourU32, 0xFF)
+	local G = bit32band(bit32rshift(ColourU32, 8), 0xFF)
+	local B = bit32band(bit32rshift(ColourU32, 16), 0xFF)
+	local A = bit32band(bit32rshift(ColourU32, 24), 0xFF)
+
+	return R / 255, G / 255, B / 255, A / 255
+end
+
+function CanvasDraw.GetRGBFromColourU32(ColourU32: number)
+	local R = bit32band(ColourU32, 0xFF)
+	local G = bit32band(bit32rshift(ColourU32, 8), 0xFF)
+	local B = bit32band(bit32rshift(ColourU32, 16), 0xFF)
+
+	return R / 255, G / 255, B / 255
 end
 
 
