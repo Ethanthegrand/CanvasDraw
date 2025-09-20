@@ -5,7 +5,7 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 19/09/2025
+	Last updated: 20/09/2025
 	Version: 4.17.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
@@ -400,6 +400,11 @@ local bit32lshift = bit32.lshift
 local bit32band = bit32.band
 local bit32rshift = bit32.rshift
 
+--== PARAMETER TYPES ==--
+
+type ParentType = GuiObject | MeshPart | Decal | Texture | SurfaceAppearance
+
+
 --== BUILT-IN FUNCTIONS ==--
 
 local function Swap(A, B)
@@ -426,9 +431,6 @@ local function XYToPixelIndex(X, Y, ResolutionX)
 	return X + (Y - 1) * ResolutionX
 end
 
-type ParentType = GuiObject | MeshPart | Decal | Texture
-type ImageData = {ImageBuffer: buffer, ImageResolution: Vector2, Width: number, Height: number}
-type CompressedImageData = {Pixels: string, Width: number, Height: number}
 
 --== MODULE FUCNTIONS ==--
 
@@ -3032,5 +3034,11 @@ end
 -- <strong>DEPRECATED</strong>. use RunSerivce.Heartbeat instead
 CanvasDraw.Updated = RunService.Heartbeat
 
+
+--== OBJECT TYPES ==--
+
+export type Canvas = typeof(CanvasDraw.new(0::any))
+export type ImageData = typeof(ImageDataConstructor.new(0::any))
+export type CompressedImageData = {Pixels: string, Width: number, Height: number}
 
 return CanvasDraw
