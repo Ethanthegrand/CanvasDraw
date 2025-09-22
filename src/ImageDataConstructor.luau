@@ -100,10 +100,15 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		local ImageBuffer = ImageData.ImageBuffer
 		
 		if X and Y and BufferWidth and BufferHeight then
+			local Width, Height = ImageData.Width, ImageData.Height
+			
+			if X < 1 or Y < 1 or X + BufferWidth - 1 > Width or Y + BufferHeight - 1 > Height then
+				warn("'ImageData:GetBuffer()' failed as the given buffer's position and size are outside the ImageData bounds")
+				return
+			end
+			
 			-- Gets a rectangular region from PointA to PointB
 			local ReturnBuffer = buffer.create(BufferWidth * BufferHeight * 4)
-			
-			local Width, Height = ImageData.Width, ImageData.Height
 
 			local ScaledWidth = BufferWidth
 
@@ -199,6 +204,8 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 			local SampleStartX = 1 + OffsetX
 
 			if SampleStartX > BufferWidth then return end
+			
+			if X > Width then return end
 
 			for ImgY = 1 + OffsetY, BufferHeight do
 				local PlacementY = Y + ImgY - 1

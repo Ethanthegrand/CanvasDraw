@@ -586,7 +586,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	local function DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColU32)
 		local BlendingMode = Canvas.AlphaBlendingMode
 		
-		if BlendingMode == 0 and Alpha > 0 then 
+		if BlendingMode == 0 and Alpha > 0 then
+			if Alpha >= 1 then return end
+			
 			-- Normal blending
 			StartX = math.clamp(StartX, 1, ResX)
 			EndX = math.clamp(EndX, 1, ResX)
@@ -601,8 +603,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 				CanvasSetRGB(Canvas, X, Y, R, G, B)
 			end
-		elseif BlendingMode == 1 then
-			-- Replace mode
+		else
+			-- Replace/default mode
 			InternalCanvas:SetBufferLine(ColU32, StartX, EndX, Y)
 		end
 	end
@@ -1788,7 +1790,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	-- Draws a simple rectangle from PointA to PointB
 	function Canvas:DrawRectangleXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Fill: boolean?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
-		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
 
 		local BlendingMode = self.AlphaBlendingMode
 		
@@ -1799,6 +1800,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 
 		Alpha = Alpha or 1
+		
+		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
@@ -1810,6 +1813,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		if X2 < X1 then
 			X1, X2 = Swap(X1, X2)
 		end
+		
+		local OrigX1, OrigY1 = X1, Y1
+		local OrigX2, OrigY2 = X2, Y2
 
 		-- Clipped coordinates
 		local StartX = math.max(X1, 1)
@@ -1824,26 +1830,60 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		if Fill or type(Fill) == "nil" then
 			-- Fill every pixel
 			DrawScanline(StartX, RangeX, StartY, ColR, ColG, ColB, Alpha, ColourU32)
-			
-			if Canvas.AlphaBlendingMode == 1 then -- No blending
-				local InitialBuffer = Canvas:GetBuffer(StartX, StartY, math.abs(X2 - X1), 1)
+
+			if Canvas.AlphaBlendingMode == 1 or Alpha >= 1 then -- No blending
+				local BufferWidth, BufferHeight = X2 - X1 + 1, Y2 - Y1 + 1
+				
+				local Buffer = Canvas:GetBuffer(StartX, StartY, BufferWidth, 1)
+				local ScaledWidth = BufferWidth
+				
+				local X, Y = StartX, OrigY1
+				local OffsetX = 0
+
+				-- Clip start X
+				if X < 1 then
+					OffsetX = 1 + -X
+					ScaledWidth -= 1 + -X
+				end
+
+				-- Clip width X
+				if X + BufferWidth - 1 > ResX then
+					ScaledWidth -= (X + BufferWidth - 2) - ResX + 1
+				end
+
+				-- Clip start Y
+				if Y < 1 then
+					BufferHeight += OrigY1 - 1
+				end
+
+				local SampleStartX = 1 + OffsetX
+				
 				local Grid = Canvas.Buffer
 
-				-- Draw one single scanline, then copy it to the rest of the rows
-				for Y = 1, ResY - 1 do
+				for ImgY = 1, BufferHeight do
+					local PlacementY = StartY + ImgY - 1
+
+					if PlacementY > ResY then break end
+
+					local SampleStartIndex = SampleStartX * 4 - 4
+					local DrawStartIndex = (X + OffsetX + (PlacementY - 1) * ResX) * 4 - 4
+
+					-- Copy a row of the image straight onto the main buffer
 					buffer.copy(
 						Grid,
-						Y * ResX * 4,
-						InitialBuffer
+						DrawStartIndex,
+						Buffer,
+						SampleStartIndex,
+						ScaledWidth * 4
 					)
 				end
 			else
 				-- Blending
 				for PlotY = StartY + 1, RangeY do
-					DrawScanline(StartX, RangeX, PlotY, ColR, ColG, ColB, Alpha)
+					DrawScanline(StartX, RangeX, PlotY, ColR, ColG, ColB, Alpha, ColourU32)
 				end
 			end
-			
+
 		else
 			-- Just draw the outlines (using solid rectangles)
 			Canvas:DrawRectangleXY(X1, Y1, X2, Y1, Colour, Alpha, true)

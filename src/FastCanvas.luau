@@ -217,6 +217,8 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			local SampleStartX = 1 + OffsetX
 
 			if SampleStartX > BufferWidth then return end
+			
+			if X > Width then return end
 
 			for ImgY = 1 + OffsetY, BufferHeight do
 				local PlacementY = Y + ImgY - 1
@@ -277,6 +279,11 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	function Canvas:GetBuffer(X: number?, Y: number?, BufferWidth: number?, BufferHeight: number?): buffer
 		-- Gets a rectangular region from PointA to PointB
 		if X and Y and BufferWidth and BufferHeight then
+			if X < 1 or Y < 1 or X + BufferWidth - 1 > Width or Y + BufferHeight - 1 > Height then
+				warn("'Canvas:GetBuffer()' failed as the given buffer's position and size are outside the Canvas bounds")
+				return
+			end
+			
 			local ReturnBuffer = buffer.create(BufferWidth * BufferHeight * 4)
 
 			local ScaledWidth = BufferWidth
@@ -339,6 +346,8 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			bit32lshift(G * 255, 8),
 			R * 255
 		)
+		
+		buffer.writeu32(CurrentClearRGBA, 0, ClearColU32)
 		
 		-- Create line to copy from
 
