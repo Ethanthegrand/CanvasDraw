@@ -5,7 +5,7 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 20/09/2025
+	Last updated: 22/09/2025
 	Version: 4.17.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
@@ -1388,7 +1388,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		<strong>Note:</strong> drawing a scaled image is much slower to render than an unscaled image
 	]]
-	function Canvas:DrawImageXY(ImageData: ImageDataType, X: number?, Y: number?, ScaleX: number?, ScaleY: number?, TransparencyBlending: boolean?)
+	function Canvas:DrawImageXY(ImageData: ImageData, X: number?, Y: number?, ScaleX: number?, ScaleY: number?, TransparencyBlending: boolean?)
 		X = X or 1
 		Y = Y or 1
 		ScaleX = ScaleX or 1

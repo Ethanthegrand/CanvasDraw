@@ -12,7 +12,7 @@
 	Written by @Ethanthegrand14
 	
 	Created: 9/11/2023
-	Last Updated: 19/09/2025
+	Last Updated: 22/09/2025
 ]]
 
 local AssetService = game:GetService("AssetService")
@@ -339,17 +339,30 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 			bit32lshift(G * 255, 8),
 			R * 255
 		)
-
-		Canvas:SetBufferLine(ClearColU32, 1, Width, 1)
 		
-		local InitialBuffer = Canvas:GetBuffer(1, 1, Width, 1)
-		local Grid = Canvas.Buffer
+		-- Create line to copy from
+
+		local Length = Width * 4
+		local SizeStep = 4
+		local Iterations = math.ceil(math.log(Length / 4, 2))
+
+		buffer.writeu32(ClearingGrid, 0, ClearColU32) -- Initial pixel to copy
+
+		-- Copy until we fill the scanline
+		for _ = 1, Iterations do
+			local Count = math.min(SizeStep, Length - SizeStep)
+
+			buffer.copy(ClearingGrid, SizeStep, ClearingGrid, 0, Count)
+			SizeStep += Count
+		end
 
 		for Y = 1, Height - 1 do
 			buffer.copy(
 				ClearingGrid,
 				Y * Width * 4,
-				InitialBuffer
+				ClearingGrid,
+				0,
+				Length
 			)
 		end
 	end
