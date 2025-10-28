@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 22/09/2025
-	Version: 4.17.0
+	Last updated: 29/09/2025
+	Version: 4.17.1
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -1421,10 +1421,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			ScaledImageResY -= (Y + ScaledImageResY - 1) - self.CurrentResY
 		end
 		
-		local CurrentStepX, CurrentStepY = 0, 0
-		local StepX = 1 / ScaleX
-		local StepY = 1 / ScaleY
-		
 		local GetImgU32 = ImageData.GetU32
 		local GetImgRGBA = ImageData.GetRGBA
 		
@@ -1481,8 +1477,15 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end
 		else
 			-- Draw image with scale adjustments (more expensive)
+			local CurrentStepX, CurrentStepY = 0, 0
+
 			local StepX = 1 / ScaleX
 			local StepY = 1 / ScaleY
+			
+			-- Clip X
+			if X < 1 then
+				CurrentStepX = (-X + 1) * StepX
+			end
 			
 			for ImgX = StartX, ScaledImageResX do
 				CurrentStepX += StepX
@@ -1490,6 +1493,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				local PlacementX = X + ImgX - 1
 				
 				CurrentStepY = 0
+				
+				-- Clip Y
+				if Y < 1 then
+					CurrentStepY = (-Y + 1) * StepY
+				end
 				
 				for ImgY = StartY, ScaledImageResY do
 					CurrentStepY += StepY
@@ -1512,7 +1520,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 						end
 						
 						CanvasSetRGB(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB)
-					elseif BlendingMode == 1 then -- Replace/No blending
+					else -- Replace/No blending
 						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, SampleX, SampleY))
 					end
 				end
