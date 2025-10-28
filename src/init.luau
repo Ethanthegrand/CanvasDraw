@@ -5,7 +5,7 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 29/09/2025
+	Last updated: 29/10/2025
 	Version: 4.17.1
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
