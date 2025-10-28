@@ -369,7 +369,7 @@ CanvasDraw.BlendingModes = {
 }
 
 CanvasDraw.Fonts = {
-	["3x2"] = "3x2",
+	["3x6"] = "3x6",
 	["Atari"] = "Atari",
 	["Codepage"] = "Codepage",
 	["CodepageLarge"] = "CodepageLarge",
