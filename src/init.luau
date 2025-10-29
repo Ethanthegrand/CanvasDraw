@@ -2643,8 +2643,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		Similar to square brushes in drawing software.
 	]]
-	function Canvas:DrawStretchedSquare(PointA: Vector2, PointB: Vector2, Colour: Color3, Thickness: number, Alpha: number?)
-		Canvas:DrawStretchedSquareXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Thickness, Alpha)
+	function Canvas:DrawStretchedSquare(PointA: Vector2, PointB: Vector2, Colour: Color3, Thickness: number)
+		Canvas:DrawStretchedSquareXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Thickness)
 	end
 	
 	--[[
@@ -2652,8 +2652,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		
 		Similar to square brushes in drawing software.
 	]]
-	function Canvas:DrawStretchedSquareXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Thickness: number, Alpha: number?)
-		Alpha = Alpha or 1
+	function Canvas:DrawStretchedSquareXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Thickness: number)
 		local HalfThickness = Thickness * 0.5
 		
 		-- Direction
@@ -2680,10 +2679,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local EndCornerCX = X2 - HalfThickness
 			local EndCornerCY = EndCornerBY
 			
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, StartCornerAX, StartCornerAY, EndCornerAX, EndCornerAY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerCX, EndCornerCY, EndCornerAX, EndCornerAY, Colour, Alpha, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, StartCornerAX, StartCornerAY, EndCornerAX, EndCornerAY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerCX, EndCornerCY, EndCornerAX, EndCornerAY, Colour, 1, true)
 		elseif IsRight and not IsBottom then
 			-- Top left
 			local StartCornerAX = X1 - HalfThickness
@@ -2704,10 +2703,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local EndCornerCX = EndCornerBX
 			local EndCornerCY = Y2 + HalfThickness
 			
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerCX, EndCornerCY, Colour, 1, true)
 		elseif not IsRight and IsBottom then
 			-- Top left
 			local StartCornerAX = X1 - HalfThickness
@@ -2728,10 +2727,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local EndCornerCX = X2 + HalfThickness
 			local EndCornerCY = EndCornerBY
 			
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, 1, true)
 		else
 			-- Bottom left
 			local StartCornerAX = X1 - HalfThickness
@@ -2752,10 +2751,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local EndCornerCX = X2 + HalfThickness
 			local EndCornerCY = EndCornerBY
 			
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, Colour, Alpha, true)
-			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, Alpha, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerBX, StartCornerBY, StartCornerCX, StartCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(EndCornerAX, EndCornerAY, EndCornerBX, EndCornerBY, EndCornerCX, EndCornerCY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerAX, StartCornerAY, StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, Colour, 1, true)
+			Canvas:DrawTriangleXY(StartCornerCX, StartCornerCY, EndCornerAX, EndCornerAY, EndCornerCX, EndCornerCY, Colour, 1, true)
 		end
 	end
 
