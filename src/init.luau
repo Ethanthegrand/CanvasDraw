@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 29/10/2025
-	Version: 4.17.1
+	Last updated: 30/10/2025
+	Version: 4.17.2
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -587,7 +587,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local BlendingMode = Canvas.AlphaBlendingMode
 		
 		if BlendingMode == 0 and Alpha > 0 then
-			if Alpha >= 1 then return end
+			if Alpha > 1 then Alpha = 1 end
 			
 			-- Normal blending
 			StartX = math.clamp(StartX, 1, ResX)
@@ -596,14 +596,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			
 			for X = StartX, EndX do
 				local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
-
 				local R = Lerp(BgR, ColR, Alpha)
 				local G = Lerp(BgG, ColG, Alpha)
 				local B = Lerp(BgB, ColB, Alpha)
 
 				CanvasSetRGB(Canvas, X, Y, R, G, B)
 			end
-		else
+		elseif BlendingMode == 1 then
 			-- Replace/default mode
 			InternalCanvas:SetBufferLine(ColU32, StartX, EndX, Y)
 		end
