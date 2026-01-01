@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 30/10/2025
-	Version: 4.17.2
+	Last updated: 1/1/2026
+	Version: 4.17.3
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -20,7 +20,7 @@
 	
 	Read more here: https://devforum.roblox.com/t/3267293
 	
-	Copyright © 2022 - 2025 | CanvasDraw
+	Copyright © 2022 - 2026 | CanvasDraw
 ]]
 
 --[[
@@ -2043,6 +2043,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	)
 		local TexResX, TexResY = ImageData.Width, ImageData.Height
 		local BlendingMode = Canvas.AlphaBlendingMode
+		
+		X1, Y1 = CeilN(X1), CeilN(Y1)
+		X2, Y2 = CeilN(X2), CeilN(Y2)
+		X3, Y3 = CeilN(X3), CeilN(Y3)
 
 		if Y2 < Y1 then
 			Y1, Y2 = Swap(Y1, Y2)
@@ -2747,7 +2751,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 						SampleY = CeilN(SampleY / Scale)
 
-						local Row = TextCharacter[SampleY]
+						local Row: number = TextCharacter[SampleY]
 
 						for SampleX = StartOffsetX, CharWidth do
 							local PlacementX = X + SampleX - 1 + OffsetX

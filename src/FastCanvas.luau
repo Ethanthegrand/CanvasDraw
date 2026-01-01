@@ -19,7 +19,7 @@ local AssetService = game:GetService("AssetService")
 
 local FastCanvas = {}
 
-type ParentType = GuiObject | MeshPart | Decal | Texture
+type ParentType = GuiObject | MeshPart | Decal | Texture | SurfaceAppearance
 
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
@@ -94,13 +94,13 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	-- Pixel methods
 	
 	--[[
-		<strong>DEPRECATED</strong>
+		Sets the pixels RGB value from a Color3 value.
 		
-		For better alternatives, try;
+		For more efficient and faster alternatives, try;
 		- <code>Canvas:SetU32()</code>
 		- <code>Canvas:SetRGBA()</code>
 	]]
-	@deprecated function Canvas:SetColor3(X: number, Y: number, Colour: Color3)
+	function Canvas:SetColor3(X: number, Y: number, Colour: Color3)
 		local Index = GetGridIndex(X, Y)
 		buffer.writeu8(Grid, Index, Colour.R * 255)
 		buffer.writeu8(Grid, Index + 1, Colour.G * 255)
@@ -157,13 +157,13 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 	end
 	
 	--[[
-		<strong>DEPRECATED</strong>
+		Returns the pixel value as a Color3 object
 		
-		For better alternatives, try;
+		For faster alternatives, try;
 		- <code>Canvas:GetU32()</code>
 		- <code>Canvas:GetRGBA()</code>
 	]]
-	@deprecated function Canvas:GetColor3(X: number, Y: number): Color3
+	function Canvas:GetColor3(X: number, Y: number): Color3
 		local Index = GetGridIndex(X, Y)
 
 		return Color3.new(buffer.readu8(Grid, Index) / 255, buffer.readu8(Grid, Index + 1) / 255, buffer.readu8(Grid, Index + 2) / 255)
