@@ -36,13 +36,12 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	--== ImageData methods ==--
 	
 	--[[
-		<strong>DEPRECATED</strong>
-		
-		For better alternatives, try;
+		Fetches a pixel from a Vector2 point on the image.
+		For more efficient and faster alternatives, try;
 		- <code>ImageData:GetU32()</code>
 		- <code>ImageData:GetRGBA()</code>
 	]]
-	@deprecated function ImageData:GetPixel(Point: Vector2): (Color3, number)
+	function ImageData:GetPixel(Point: Vector2): (Color3, number)
 		local PixelBuffer = self.ImageBuffer
 		local X, Y = math.floor(Point.X), math.floor(Point.Y)
 		local Index = GetIndex(X, Y)
@@ -51,13 +50,12 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	end
 	
 	--[[
-		<strong>DEPRECATED</strong>
-		
-		For better alternatives, try;
+		Fetches a pixel from a point on the image.
+		For more efficient and faster alternatives, try;
 		- <code>ImageData:GetU32()</code>
 		- <code>ImageData:GetRGBA()</code>
 	]]
-	@deprecated function ImageData:GetPixelXY(X: number, Y: number): (Color3, number)
+	function ImageData:GetPixelXY(X: number, Y: number): (Color3, number)
 		local PixelBuffer = self.ImageBuffer
 		local Index = GetIndex(X, Y)
 
@@ -257,13 +255,12 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	end
 	
 	--[[
-		<strong>DEPRECATED</strong>
-		
-		For better alternatives, try;
+		Sets a pixel on the canvas
+		For more efficient and faster alternatives, try;
 		- <code>ImageData:SetU32()</code>
 		- <code>ImageData:SetRGBA()</code>
 	]]
-	@deprecated function ImageData:SetPixel(X: number, Y: number, Colour: Color3, Alpha: number?)
+	function ImageData:SetPixel(X: number, Y: number, Colour: Color3, Alpha: number?)
 		local PixelBuffer = self.ImageBuffer
 		local Index = GetIndex(X, Y)
 		buffer.writeu8(PixelBuffer, Index, Colour.R * 255)

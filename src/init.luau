@@ -5,13 +5,13 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 1/1/2026
-	Version: 4.17.3
+	Last updated: 10/1/2026
+	Version: 4.17.4
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
 	
-	DUE TO EDITABLEIMAGE USAGE LIMITS; IN ORDER TO USE, YOU MUST BE:
+	DUE TO EDITABLEIMAGE USAGE LIMITS; IN ORDER TO USE THIS IN PUBLISHED EXPERIENCES, YOU MUST BE:
 	- 13+
 	- ID-verified
 	
@@ -32,23 +32,23 @@
 
 	CanvasDraw Functions:
 	
-	   - CanvasDraw.new(Parent, Resolution, CanvasColour?, Blur?) : Canvas
+	   - CanvasDraw.new(Parent, Resolution?, CanvasColour?, Blur?) : Canvas
 	      * Constructs and returns a canvas class/object.
 	      * The parent can be the following: 
 	        GuiObject (such as Frame) or MeshPart, Decal, etc
 	      * NOTE: This may fail to create and return a canvas if a memory limit is exceeded
 	
-	   - CanvasDraw.GetImageData(SaveObject, SlowLoad) : ImageData [YIELDS?]
-	      * Reads the selected SaveObject's compressed ImageData and returns a readable ImageData object
+	   - CanvasDraw.GetImageData(SaveObject, SlowLoad?) : ImageData [YIELDS?]
+	      * Reads the selected SaveObject's compressed data and returns an ImageData object
 	      * When SlowLoad is set to true, this method will yield and slowly decompress the SaveObject
 	        to avoid large lag spikes on the client with large images
 	      * OSGL texture modules are compatible
 	      
 	   - CanvasDraw.GetImageDataFromTextureId(TextureId, MaxWidth?, MaxHeight?) : ImageData? [YIELDS]
-	      * Loads the selected roblox texture asset and returns an ImageData class if succeeded.
+	      * Loads the selected roblox image asset and returns an ImageData class if succeeded.
 	      * This method will yield as it uses AssetService!
-	      * The optional 'MaxWidth' and 'MaxHeight' parameters will rescale the image 
-	        to fit within your limits while maining the correct aspect ratio.
+	      * The optional 'MaxWidth' and 'MaxHeight' parameters will rescale the image to fit within 
+	        your limits while maintaining the correct aspect ratio.
 	      * NOTE: Currently, this method will not return ImageData if the user or place does not own the
 	        requested asset, or AssetService errors in some other way.
 	      
@@ -84,9 +84,10 @@
 	
 	   - CanvasDraw.BlendingModes : table
 	      * Enums for the canvas property 'AlphaBlendingMode'
+	      * NOTE: Using other blending modes may result in slower performance due to per-pixel blending operations
 	      * Current values are:
 	        > Normal  | 0
-		    > Replace | 1
+		    > Replace | 1 (default)
 		    
 	   - CanvasDraw.Fonts : table
 	      * Enums for the canvas method 'DrawText()'
@@ -119,6 +120,7 @@
 	      * Allows for shapes, images and certain draw methods to blend with the canvas transparency differently.
 	      * This property can be set with 'CanvasDraw.BlendingModes'
 	      * Defaults to 'CanvasDraw.BlendingModes.Replace' or '1'
+	      * NOTE: Changing blending modes may result in slower performance due to per-pixel blending operations
 		
 	   - OutputWarnings : boolean
 	      * Determines whether any warning messages will appear in the output if something is out of place 
@@ -243,13 +245,14 @@
 	      
 	   - Canvas:GetBuffer(X?, Y? BufferWidth? BufferHeight?) : buffer
 	      * Returns all the pixels on the canvas in the form of an RGBA buffer
+	      * The entire canvas will be used if all parameters are left empty
 	   
 	   - Canvas:GetMousePoint() : Vector2? [CLIENT/PLUGIN ONLY]
 	      * If the user's mouse is within the canvas, a canvas point (Vector2) will be returned
 	        Otherwise, nothing will be returned (nil)
 	      * NOTE: This function is only compatible with 'ScreenGui' and 'SurfaceGui'
 	      
-	   - Canvas:ViewportToCanvasPoint() : Vector2 [CLIENT/PLUGIN ONLY]
+	   - Canvas:ViewportToCanvasPoint(ScreenPosotion) : Vector2 [CLIENT/PLUGIN ONLY]
 	      * This method will take a Vector2 screen position, and return a canvas pixel point.
 	      * This does not take into account the GUI inset.
 	      * NOTE: This is only compatible with 'ScreenGui'
@@ -268,7 +271,7 @@
 	
 	   - Canvas:SetStretchToFit(Enable?)
 	      * Determines wether or not the canvas should maintain it's aspect ratio, or stretch the pixels to fit the parent
-	      * NOTE: Only currently works when canvas is parented a GuiObject (such as a Frame)
+	      * NOTE: Only works when canvas is parented a GuiObject (such as a Frame)
 	
 	   - Canvas:SetClearRGBA(R, G, B, A)
 	      * Changes the clearing colour that is used when calling 'Canvas:Clear()'
@@ -279,7 +282,7 @@
 	        If you want to scale the canvas content, you will have to redraw 
 	        the image after resizing
 	        
-	   - Canvas:SetBlur()
+	   - Canvas:SetBlur(Enable?)
 	     * Toggles canvas image blurring
 	     * (only available when canvas is parented to a GuiObject)
 	      
@@ -328,6 +331,10 @@
 	      
 	   - ImageData:GetBuffer(X?, Y? BufferWidth? BufferHeight?) : buffer
 	      * Returns all the pixels on the canvas in the form of an RGBA buffer
+	      * The entire canvas will be used if all parameters are left empty
+	      
+	   - ImageData:Clone() : ImageData
+	      * Returns a unique copy of the image data object
 	
 	
 	ImageData Properties:
@@ -1420,6 +1427,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			ScaledImageResY -= (Y + ScaledImageResY - 1) - self.CurrentResY
 		end
 		
+		if X > ResX or Y > ResY then return end -- No need to draw if out of bounds
+		
 		local GetImgU32 = ImageData.GetU32
 		local GetImgRGBA = ImageData.GetRGBA
 		
@@ -1833,6 +1842,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		RangeX = math.min(RangeX, self.CurrentResX)
 		RangeY = math.min(RangeY, self.CurrentResY)
+		
+		if X1 > ResX or Y1 > ResY or X2 < 1 or Y2 < 1 then return end
 
 		if Fill or type(Fill) == "nil" then
 			-- Fill every pixel
@@ -1841,7 +1852,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			if Canvas.AlphaBlendingMode == 1 or Alpha >= 1 then -- No blending
 				local BufferWidth, BufferHeight = X2 - X1 + 1, Y2 - Y1 + 1
 				
-				local Buffer = Canvas:GetBuffer(StartX, StartY, BufferWidth, 1)
 				local ScaledWidth = BufferWidth
 				
 				local X, Y = StartX, OrigY1
@@ -1862,6 +1872,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				if Y < 1 then
 					BufferHeight += OrigY1 - 1
 				end
+				
+				local Buffer = Canvas:GetBuffer(StartX, StartY, ScaledWidth, 1)
 
 				local SampleStartX = 1 + OffsetX
 				
@@ -2884,9 +2896,9 @@ end
 --============================================================================================================--
 
 --[[
-	Reads and decompresses a CanvasDraw SaveObject instance and returns an ImageData object.
+	Reads a CanvasDraw SaveObject instance and returns an ImageData object.
 	
-	Set the <strong>SlowLoad</strong> parameter to true to yield your code to avoid lag spikes when reading large SaveObjects
+	Set the <strong>SlowLoad</strong> parameter to true to yield your code to avoid lag spikes when reading larger SaveObjects
 ]]
 function CanvasDraw.GetImageData(SaveObject: Instance, SlowLoad: boolean?)
 	local PixelArray
