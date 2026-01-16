@@ -1,11 +1,4 @@
 {
-  "name": "CanvasDraw",
-  "tree": {
-    "$className": "DataModel",
-    "ReplicatedStorage": {
-      "CanvasDraw": {
-        "$path": "src/CanvasDraw"
-      }
-    }
-  }
+    "name": "CanvasDraw",
+    "tree": { "$path": "src/CanvasDraw" }
 }
