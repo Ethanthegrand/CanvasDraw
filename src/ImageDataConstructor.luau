@@ -6,21 +6,6 @@ local Lerp = math.lerp
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
 
-local function deepCopy(original)
-	local copy = {}
-	for k, v in pairs(original) do
-		if type(v) == "table" then
-			v = deepCopy(v)
-		elseif type(v) == "buffer" then
-			local v2 = buffer.create(buffer.len(v))
-			buffer.copy(v2, 0, v)
-			v = v2
-		end
-		copy[k] = v
-	end
-	return copy
-end
-
 function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	local ImageData = {
 		ImageBuffer = Buffer,
@@ -254,6 +239,22 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		end
 	end
 	
+	-- Flips the pixel contents of the ImageData either on it's horizontal or vertical axis
+	function ImageData:Flip(Vertical: boolean?)
+		local TempData = ImageData:Clone()
+		local Width, Height = ImageData.Width, ImageData.Height
+		
+		if Vertical then
+			for Y = 1, Height do
+				ImageData:SetBuffer(TempData:GetBuffer(1, Height - Y + 1, Width, 1), 1, Y, Width, 1)
+			end
+		else
+			for X = 1, Width do
+				ImageData:SetBuffer(TempData:GetBuffer(Width - X + 1, 1, 1, Height), X, 1, 1, Height)
+			end
+		end
+	end
+	
 	--[[
 		Sets a pixel on the canvas
 		For more efficient and faster alternatives, try;
@@ -302,7 +303,12 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	
 	-- Returns a deep copy of the ImageData object
 	function ImageData:Clone(): typeof(ImageData)
-		return deepCopy(ImageData)
+		local Width, Height = self.Width, self.Height
+		
+		local ClonedBuffer = buffer.create(Width * Height * 4)
+		buffer.copy(ClonedBuffer, 0, self.ImageBuffer)
+		
+		return Module.new(Width, Height, ClonedBuffer)
 	end
 
 	return ImageData

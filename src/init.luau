@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 10/1/2026
-	Version: 4.17.4
+	Last updated: 31/1/2026
+	Version: 4.18.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -86,8 +86,9 @@
 	      * Enums for the canvas property 'AlphaBlendingMode'
 	      * NOTE: Using other blending modes may result in slower performance due to per-pixel blending operations
 	      * Current values are:
-	        > Normal  | 0
-		    > Replace | 1 (default)
+	        > Normal   | 0
+		    > Replace  | 1 (default)
+		    > AddAlpha | 2
 		    
 	   - CanvasDraw.Fonts : table
 	      * Enums for the canvas method 'DrawText()'
@@ -333,6 +334,9 @@
 	      * Returns all the pixels on the canvas in the form of an RGBA buffer
 	      * The entire canvas will be used if all parameters are left empty
 	      
+	   - ImageData:Flip(Vertical: boolean?)
+	      * Flips the image contents horizontally or vertically
+	      
 	   - ImageData:Clone() : ImageData
 	      * Returns a unique copy of the image data object
 	
@@ -372,7 +376,8 @@ local CanvasDraw = {}
 -- Read only
 CanvasDraw.BlendingModes = {
 	Normal = 0,
-	Replace = 1
+	Replace = 1,
+	AddAlpha = 2,
 }
 
 CanvasDraw.Fonts = {
@@ -458,7 +463,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		GridColour = Color3.new(1, 1, 1),
 		AutoRenderFpsLimit = 0,
 		AlphaBlendingMode = CanvasDraw.BlendingModes.Replace,
-		
+
 		-- Read only
 		Resolution = Vector2New(100, 100),
 
@@ -553,12 +558,14 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	local OnRenderedBindable = Instance.new("BindableEvent")
 	OnRenderedBindable.Name = "OnRenderedEvent"
 	OnRenderedBindable.Parent = EventsFolder
-	
+
 	local CanvasSetU32 = InternalCanvas.SetU32
 	local CanvasSetRGB = InternalCanvas.SetRGB
 	local CanvasSetRGBA = InternalCanvas.SetRGBA
-	
+
+	local CanvasGetAlpha = InternalCanvas.GetAlpha
 	local CanvasGetRGB = InternalCanvas.GetRGB
+	local CanvasGetRGBA = InternalCanvas.GetRGBA
 	local CanvasGetU32 = InternalCanvas.GetU32
 
 	-- Canvas events
@@ -587,20 +594,20 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			Canvas.AutoRender = true
 		end
 	end)
-	
+
 	-- Helper functions
-	
+
 	local function DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColU32)
 		local BlendingMode = Canvas.AlphaBlendingMode
-		
+
 		if BlendingMode == 0 and Alpha > 0 then
 			if Alpha > 1 then Alpha = 1 end
-			
+
 			-- Normal blending
 			StartX = math.clamp(StartX, 1, ResX)
 			EndX = math.clamp(EndX, 1, ResX)
 			Y = math.clamp(Y, 1, ResY)
-			
+
 			for X = StartX, EndX do
 				local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
 				local R = Lerp(BgR, ColR, Alpha)
@@ -609,12 +616,24 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 				CanvasSetRGB(Canvas, X, Y, R, G, B)
 			end
-		elseif BlendingMode == 1 then
+		elseif BlendingMode == 2 and Alpha < 1 then
+			-- Add blending
+			if Alpha > 1 then Alpha = 1 end
+
+			StartX = math.clamp(StartX, 1, ResX)
+			EndX = math.clamp(EndX, 1, ResX)
+			Y = math.clamp(Y, 1, ResY)
+
+			for X = StartX, EndX do
+				local BgA = CanvasGetAlpha(Canvas, X, Y)
+				CanvasSetRGBA(Canvas, X, Y, ColR, ColG, ColB, math.min(Alpha + BgA, 1))
+			end
+		elseif BlendingMode == 1 or Alpha >= 1 then
 			-- Replace/default mode
 			InternalCanvas:SetBufferLine(ColU32, StartX, EndX, Y)
 		end
 	end
-	
+
 	local function DrawSimpleLine(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number)
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
@@ -651,7 +670,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					local ColR = R
 					local ColG = G 
 					local ColB = B 
-					
+
 					if Alpha < 1 then
 						local BgR, BgG, BgB = InternalCanvas:GetRGB(X1, Y1)
 
@@ -661,7 +680,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					end
 
 					InternalCanvas:SetRGB(X1, Y1, ColR, ColG, ColB)
-				elseif BlendingMode == 1 then -- Replace
+				elseif BlendingMode == 2 and Alpha < 1 then
+					-- Add blending
+					local BgA = CanvasGetAlpha(Canvas, X1, Y1)
+					CanvasSetRGBA(Canvas, X1, Y1, R, G, B, math.min(BgA + Alpha, 1))
+				elseif BlendingMode == 1 or Alpha >= 1 then
 					InternalCanvas:SetU32(X1, Y1, ColourU32)
 				end
 			end
@@ -699,7 +722,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		Resolution = NewResolution
 		GridImage.TileSize = UDim2.fromScale(1 / NewResolution.X, 1 / NewResolution.Y)
-		
+
 		self.Buffer = InternalCanvas.Buffer
 		self.Resolution = NewResolution
 		self.CurrentResX = NewResolution.X
@@ -716,7 +739,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		self.AutoUpdateConnection:Disconnect()
 		EventsFolder:Destroy()
 	end
-	
+
 	-- Changes the canvas' internal ImageLabel to either have the resample mode set to blur, or pixelated	
 	function Canvas:SetBlur(Enabled: boolean)
 		if UiFrameMode then
@@ -725,12 +748,12 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			OutputWarn("Canvas:SetBlur() is currently only avaialable for canvases parented to a GuiObject!")
 		end
 	end
-	
+
 	-- Changes the canvas pixel contents to stretch to fit or maintain aspect ratio when parented to GuiObject.
 	function Canvas:SetStretchToFit(Enabled: boolean)
 		if UiFrameMode then
 			local OldAspectRatio = InternalCanvas.ImageLabel:FindFirstChildOfClass("UIAspectRatioConstraint")
-			
+
 			if not Enabled and not OldAspectRatio then
 				local AspectRatio = Instance.new("UIAspectRatioConstraint")
 				AspectRatio.AspectRatio = self.CurrentResX / self.CurrentResY
@@ -747,9 +770,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	function Canvas:FillRGBA(R: number, G: number, B: number, A: number?)
 		A = A or 1
 		local ColU32 = CanvasDraw.GetColourU32(R, G, B, A)
-		
+
 		DrawScanline(1, ResX, 1, R, G, B, A, ColU32)
-		if Canvas.AlphaBlendingMode == 1 then
+		if Canvas.AlphaBlendingMode ~= 0 then
 			local InitialBuffer = Canvas:GetBuffer(1, 1, ResX, 1)
 			local Grid = Canvas.Buffer
 
@@ -767,7 +790,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end
 		end
 	end
-	
+
 	function Canvas:Fill(Colour: Color3, Alpha: number?)
 		local R, G, B, A = Colour.R, Colour.G, Colour.B, Alpha or 1
 		Canvas:FillRGBA(R, G, B, A)
@@ -816,14 +839,14 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			return InternalCanvas:GetColor3(X, Y)
 		end
 	end
-	
+
 	-- Internal pixel fetch methods
 	Canvas.GetPixelXY = InternalCanvas.GetColor3
 	Canvas.GetRGB = InternalCanvas.GetRGB
 	Canvas.GetRGBA = InternalCanvas.GetRGBA
 	Canvas.GetAlpha = InternalCanvas.GetAlpha
 	Canvas.GetU32 = InternalCanvas.GetU32
-	
+
 	-- Buffer methods
 	Canvas.GetBuffer = InternalCanvas.GetBuffer
 
@@ -900,16 +923,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							math.abs(hitOffset.X), 
 							math.abs(hitOffset.Y)
 						)
-						
+
 						-- Determine which axis' to use from the part size
 						local XyToUse = {X = "X", Y = "Y"}
-						
+
 						if SurfaceGui.Face == Enum.NormalId.Left or SurfaceGui.Face == Enum.NormalId.Right then
 							XyToUse = {X = "Z", Y = "Y"}
 						elseif SurfaceGui.Face == Enum.NormalId.Top or SurfaceGui.Face == Enum.NormalId.Bottom then
 							XyToUse = {X = "Z", Y = "X"}
 						end
-						
+
 						-- Gives us a ScreenPos value between (-0.5, -0.5) to (0.5, 0.5)
 						ScreenPos -= Vector2.new(Part.Size[XyToUse.X] / 2, Part.Size[XyToUse.Y] / 2)
 						ScreenPos /= Vector2.new(Part.Size[XyToUse.X], Part.Size[XyToUse.Y])
@@ -1019,17 +1042,17 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			return false
 		end
 	end
-	
-	
+
+
 	--==<< Canvas Shape Point Fetch Methods >>==--
-	
+
 	function Canvas:GetTrianglePoints(PointA: Vector2, PointB: Vector2, PointC: Vector2, Fill: boolean?): {Vector2}
 		local X1, Y1 = CeilN(PointA.X), CeilN(PointA.Y)
 		local X2, Y2 = CeilN(PointB.X), CeilN(PointB.Y)
 		local X3, Y3 = CeilN(PointC.X), CeilN(PointC.Y)
-		
+
 		local ReturnPoints = {}
-		
+
 		if not (Fill or type(Fill) == "nil") then
 			-- Bresenham triangle outlines
 			local function InsertPoints(...)
@@ -1040,9 +1063,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 					end
 				end
 			end
-			
+
 			InsertPoints(Canvas:GetLinePoints(PointA, PointB), Canvas:GetLinePoints(PointB, PointC), Canvas:GetLinePoints(PointC, PointA))
-			
+
 			return ReturnPoints
 		end
 
@@ -1138,14 +1161,14 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
 		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
-		
+
 		return ReturnPoints
 	end
-	
+
 	function Canvas:GetLinePoints(PointA: Vector2, PointB: Vector2, Thickness: number?, RoundedCaps: boolean?): {Vector2}
 		local X1, Y1 = CeilN(PointA.X), CeilN(PointA.Y)
 		local X2, Y2 = CeilN(PointB.X), CeilN(PointB.Y)
-		
+
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
 
 		local DrawnPointsArray = {}
@@ -1237,7 +1260,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local TrianglePointsB = Canvas:GetTrianglePoints(
 				Vector2New(StartCornerX2, StartCornerY2), Vector2New(EndCornerX1, EndCornerY1), Vector2New(EndCornerX2, EndCornerY2), true
 			)
-			
+
 			local function InsertPoints(...)
 				local PointsTable = {...}
 				for i, Table in ipairs(PointsTable) do
@@ -1261,11 +1284,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		return DrawnPointsArray
 	end
-	
+
 	function Canvas:GetRectanglePoints(PointA: Vector2, PointB: Vector2, Fill: boolean?): {Vector2}
 		local X1, Y1 = CeilN(PointA.X), CeilN(PointA.Y)
 		local X2, Y2 = CeilN(PointB.X), CeilN(PointB.Y)
-		
+
 		local ReturnPoints = {}
 
 		if Y2 < Y1 then
@@ -1315,10 +1338,10 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		return ReturnPoints
 	end
-	
+
 	function Canvas:GetCirclePoints(Point: Vector2, Radius: number, Fill: boolean?): {Vector2}
 		local X, Y = CeilN(Point.X), CeilN(Point.Y)
-		
+
 		local PointsArray = {}
 
 		-- Draw the circle
@@ -1402,12 +1425,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		ScaleX = ScaleX or 1
 		ScaleY = ScaleY or 1
 
+		if ScaleX <= 0 or ScaleY <= 0 then
+			return
+		end
+
 		local ImageResolutionX = ImageData.Width
 		local ImageResolutionY = ImageData.Height
 
 		local ScaledImageResX = ImageResolutionX * ScaleX
 		local ScaledImageResY = ImageResolutionY * ScaleY
-		
+
 		local BlendingMode = self.AlphaBlendingMode
 
 		local StartX = 1
@@ -1426,54 +1453,54 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		if Y + ScaledImageResY - 1 > self.CurrentResY then
 			ScaledImageResY -= (Y + ScaledImageResY - 1) - self.CurrentResY
 		end
-		
+
 		if X > ResX or Y > ResY then return end -- No need to draw if out of bounds
-		
+
 		local GetImgU32 = ImageData.GetU32
 		local GetImgRGBA = ImageData.GetRGBA
-		
+
 		local InternalBuffer = InternalCanvas.Buffer
 
 		if (BlendingMode == 1 or not TransparencyBlending) and ScaleX == 1 and ScaleY == 1 then
 			-- Draw normal image with no blending and no scale adjustments (most optimal)
 			local ImageBuffer = ImageData.ImageBuffer
-			
+
 			local ImageWidth, ImageHeight = ImageData.Width, ImageData.Height
 			local ScaledWidth = math.ceil(ImageWidth * ScaleX)
-			
+
 			local OffsetWidth = ImageWidth
-			
+
 			local OffsetY = 0
 			local OffsetX = 0
-			
+
 			-- Clip start X
 			if X < 1 then
 				OffsetX = 1 + -X
 				OffsetWidth -= 1 + -X
 			end
-			
+
 			-- Clip width X
 			if X + ImageWidth - 1 > ResX then
 				OffsetWidth -= (X + ImageWidth - 2) - ResX + 1
 			end
-			
+
 			-- Clip start Y
 			if Y < 1 then
 				OffsetY = 1 + -Y
 			end
-			
+
 			local SampleStartX = 1 + OffsetX
-			
+
 			if SampleStartX > ImageWidth then return end
-			
+
 			for ImgY = 1 + OffsetY, ImageHeight do
 				local PlacementY = Y + ImgY - 1
-				
+
 				if PlacementY > ResY then break end
-				
+
 				local ImageBufferStartIndex = (SampleStartX + (ImgY - 1) * ImageWidth) * 4 - 4
 				local DrawStartIndex = (X + OffsetX + (PlacementY - 1) * ResX) * 4 - 4
-				
+
 				-- Copy a row of the image straight onto the main buffer
 				buffer.copy(
 					InternalBuffer,
@@ -1487,47 +1514,53 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			-- Draw image with scale adjustments (more expensive)
 			local CurrentStepX, CurrentStepY = 0, 0
 
+
+
 			local StepX = 1 / ScaleX
 			local StepY = 1 / ScaleY
-			
+
 			-- Clip X
 			if X < 1 then
 				CurrentStepX = (-X + 1) * StepX
 			end
-			
+
 			for ImgX = StartX, ScaledImageResX do
 				CurrentStepX += StepX
 				local SampleX = CeilN(CurrentStepX)
 				local PlacementX = X + ImgX - 1
-				
+
 				CurrentStepY = 0
-				
+
 				-- Clip Y
 				if Y < 1 then
 					CurrentStepY = (-Y + 1) * StepY
 				end
-				
+
 				for ImgY = StartY, ScaledImageResY do
 					CurrentStepY += StepY
 					local SampleY = CeilN(CurrentStepY)
 					local PlacementY = Y + ImgY - 1
-					
+
 					if BlendingMode == 0 and TransparencyBlending then -- Normal blending
 						local ImgR, ImgG, ImgB, ImgA = GetImgRGBA(ImageData, SampleX, SampleY)
-						
+
 						if ImgA == 0 then -- No need to do any calculations for completely transparent pixels
 							continue
 						end
 
 						if ImgA < 1 then
 							local BgR, BgG, BgB = CanvasGetRGB(Canvas, PlacementX, PlacementY)
-							
+
 							ImgR = Lerp(BgR, ImgR, ImgA)
 							ImgG = Lerp(BgG, ImgG, ImgA)
 							ImgB = Lerp(BgB, ImgB, ImgA)
 						end
-						
+
 						CanvasSetRGB(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB)
+					elseif BlendingMode == 2 and TransparencyBlending then
+						local ImgR, ImgG, ImgB, ImgA = GetImgRGBA(ImageData, SampleX, SampleY)
+						local BgA = CanvasGetAlpha(Canvas, PlacementX, PlacementY)
+						CanvasSetRGBA(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB, math.min(ImgA + BgA, 1))
 					else -- Replace/No blending
 						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, SampleX, SampleY))
 					end
@@ -1551,7 +1584,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		Canvas:DrawImageXY(ImageData, Point.X, Point.Y, Scale.X, Scale.Y, TransparencyBlending)
 	end
-	
+
 	--[[
 		This method replaces the canvas buffer with an image's buffer.
 		
@@ -1590,7 +1623,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		local OrigR, OrigG, OrigB = self:GetRGB(X, Y)
 		local OrigU32 = self:GetU32(X, Y)
-		
+
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		Alpha = Alpha or 1
 
@@ -1649,8 +1682,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							end
 
 							CanvasSetRGB(InternalCanvas, currentPointX, currentPointY, SetR, SetG, SetB)
-						elseif BlendingMode == 1 then -- Replace mode
-							CanvasSetU32(InternalCanvas, currentPointX, currentPointY, ColU32)
+						elseif BlendingMode == 2 and Alpha < 1 then -- Add blending
+							local BgA = CanvasGetAlpha(Canvas, currentPointX, currentPointY)
+							CanvasSetRGBA(Canvas, currentPointX, currentPointY, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
+						elseif BlendingMode == 1 or Alpha >= 1 then
+							InternalCanvas:SetU32(currentPointX, currentPointY, ColU32)
 						end
 
 						-- Mark as seen
@@ -1689,17 +1725,17 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			end
 		end
 	end
-	
+
 	-- Set pixel methods
 	Canvas.SetPixel = InternalCanvas.SetColor3
 	Canvas.SetRGB = InternalCanvas.SetRGB
 	Canvas.SetRGBA = InternalCanvas.SetRGBA
 	Canvas.SetAlpha = InternalCanvas.SetAlpha
 	Canvas.SetU32 = InternalCanvas.SetU32
-	
+
 	-- Buffer methods
 	Canvas.SetBuffer = InternalCanvas.SetBuffer
-	
+
 	-- Misc methods
 	Canvas.Clear = InternalCanvas.Clear
 
@@ -1712,19 +1748,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	function Canvas:DrawCircleXY(X: number, Y: number, Radius: number, Colour: Color3, Alpha: number?, Fill: boolean?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		X, Y = CeilN(X), CeilN(Y)
-		
+
 		-- Backwards compatability for pre 4.12 versions
 		if type(Alpha) == "boolean" then
 			Fill = Alpha
 			Alpha = 1
 		end
-		
+
 		Alpha = Alpha or 1
-		
+
 		local BlendingMode = self.AlphaBlendingMode
-		
+
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
-		
+
 		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
 		-- Draw the circle
@@ -1733,12 +1769,12 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			if DrawX > ResX or DrawY > ResY or DrawX < 1 or DrawY < 1 then
 				return -- Clip
 			end
-			
+
 			if BlendingMode == 0 and Alpha > 0 then -- Normal
 				local R = ColR
 				local G = ColG
 				local B = ColB
-				
+
 				if Alpha < 1 then
 					local BgR, BgG, BgB = CanvasGetRGB(Canvas, DrawX, DrawY)
 
@@ -1748,8 +1784,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				end
 
 				CanvasSetRGB(Canvas, DrawX, DrawY, R, G, B)
-			elseif BlendingMode == 1 then -- Replace
-				CanvasSetU32(Canvas, DrawX, DrawY, ColourU32)
+			elseif BlendingMode == 2 and Alpha < 1 then -- Add blending
+				local BgA = CanvasGetAlpha(Canvas, DrawX, DrawY)
+				CanvasSetRGBA(Canvas, DrawX, DrawY, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
+			elseif BlendingMode == 1 or Alpha >= 1 then
+				InternalCanvas:SetU32(DrawX, DrawY, ColourU32)
 			end
 		end
 
@@ -1757,36 +1796,40 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			-- Iterate over each row of the bounding box
 			for y = -Radius, Radius do
 				local rowY = Y + y
+				
+				if rowY < 1 then continue end
+				if rowY > ResY then break end
+				
 				-- Determine the horizontal extent of the circle at this y position
 				local HorizontalRadius = math.sqrt(Radius * Radius - y * y + Radius / 2)
-				
+
 				local startX = math.ceil(-HorizontalRadius) -- Round up to avoid gaps
 				local endX = math.floor(HorizontalRadius)  -- Round down to avoid gaps
-			
+
 				DrawScanline(X + startX, X + endX, rowY, ColR, ColG, ColB, Alpha, ColourU32)
 			end
 		else
 			local dx, dy, err = Radius, 0, 1 - Radius
-			
+
 			while dx >= dy do -- Circle outline
 				if dy ~= 0 then
 					CreatePixelForCircle(X + dx, Y + dy)
 					CreatePixelForCircle(X - dx, Y + dy)
 				end
-				
+
 				--if dy ~= dx then
 				CreatePixelForCircle(X + dx, Y - dy)
 				CreatePixelForCircle(X - dx, Y - dy)
 				CreatePixelForCircle(X + dy, Y + dx)
 				CreatePixelForCircle(X + dy, Y - dx)
 				--end
-				
+
 				if dy ~= 0 then
 					CreatePixelForCircle(X - dy, Y + dx)
 					CreatePixelForCircle(X - dy, Y - dx)
 				end
-				
-		
+
+
 
 				dy = dy + 1
 				if err < 0 then
@@ -1808,7 +1851,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 
 		local BlendingMode = self.AlphaBlendingMode
-		
+
 		-- Backwards compatability for pre 4.12 versions
 		if type(Alpha) == "boolean" then
 			Fill = Alpha
@@ -1816,7 +1859,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 
 		Alpha = Alpha or 1
-		
+
 		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, Alpha)
 
 		X1, Y1 = CeilN(X1), CeilN(Y1)
@@ -1829,7 +1872,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		if X2 < X1 then
 			X1, X2 = Swap(X1, X2)
 		end
-		
+
 		local OrigX1, OrigY1 = X1, Y1
 		local OrigX2, OrigY2 = X2, Y2
 
@@ -1842,7 +1885,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		RangeX = math.min(RangeX, self.CurrentResX)
 		RangeY = math.min(RangeY, self.CurrentResY)
-		
+
 		if X1 > ResX or Y1 > ResY or X2 < 1 or Y2 < 1 then return end
 
 		if Fill or type(Fill) == "nil" then
@@ -1851,9 +1894,9 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 			if Canvas.AlphaBlendingMode == 1 or Alpha >= 1 then -- No blending
 				local BufferWidth, BufferHeight = X2 - X1 + 1, Y2 - Y1 + 1
-				
+
 				local ScaledWidth = BufferWidth
-				
+
 				local X, Y = StartX, OrigY1
 				local OffsetX = 0
 
@@ -1872,11 +1915,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				if Y < 1 then
 					BufferHeight += OrigY1 - 1
 				end
-				
+
 				local Buffer = Canvas:GetBuffer(StartX, StartY, ScaledWidth, 1)
 
 				local SampleStartX = 1 + OffsetX
-				
+
 				local Grid = Canvas.Buffer
 
 				for ImgY = 1, BufferHeight do
@@ -1931,7 +1974,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			Fill = Alpha
 			Alpha = 1
 		end
-		
+
 		Alpha = Alpha or 1
 
 		local BlendingMode = self.AlphaBlendingMode
@@ -1974,7 +2017,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 			DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColourU32)
 		end
-		
+
 		local OrigX3, OrigX2, OrigX1 = X3, X2, X1
 		local OrigY1, OrigY3 = Y1, Y3
 
@@ -2035,7 +2078,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		-- Fill triangle
 		local X4 = X1 + (Y2 - Y1) / (Y3 - Y1) * (X3 - X1)
-		
+
 		FillTopTriangle(X1, Y1, X2, Y2, X4, Y2)
 		FillBottomTriangle(X2, Y2, X4, Y2, X3, Y3)
 	end
@@ -2055,7 +2098,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	)
 		local TexResX, TexResY = ImageData.Width, ImageData.Height
 		local BlendingMode = Canvas.AlphaBlendingMode
-		
+
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
 		X3, Y3 = CeilN(X3), CeilN(Y3)
@@ -2111,7 +2154,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		du2_step = du2 / math.abs(dy2)
 		dv2_step = dv2 / math.abs(dy2)
-		
+
 		local ImgGetRGBA = ImageData.GetRGBA
 		local ImgGetU32 = ImageData.GetU32
 
@@ -2161,25 +2204,19 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				for j = StartOffsetX, ScanlineLength do
 					local SampleX = ClampN(FloorN(TexU), 1, TexResX)
 					local SampleY = ClampN(FloorN(TexV), 1, TexResY)
-					
+
 					local DrawX = ax + j
-					
+
 					local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
-					
-					if BlendingMode == 0 then -- Normal
-						if A > 0 then
-							R *= Brightness
-							G *= Brightness
-							B *= Brightness
-							
-							CanvasSetRGB(InternalCanvas, DrawX, Y, R, G, B)
-						end
+					R *= Brightness
+					G *= Brightness
+					B *= Brightness
 
-					elseif BlendingMode == 1 then -- Replace
-						R *= Brightness
-						G *= Brightness
-						B *= Brightness
-
+					if BlendingMode == 0 and A > 0 then -- Normal
+						CanvasSetRGB(InternalCanvas, DrawX, Y, R, G, B)
+					elseif BlendingMode == 2 and A > 0 then -- Add blending
+						CanvasSetRGBA(InternalCanvas, DrawX, Y, R, G, B, 1)
+					elseif BlendingMode == 1 then
 						CanvasSetRGBA(InternalCanvas, DrawX, Y, R, G, B, A)
 					end
 
@@ -2197,11 +2234,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 					if BlendingMode == 0 then -- Normal
 						local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
-						
+
 						if A > 0 then
 							CanvasSetRGB(InternalCanvas, DrawX, Y, R, G, B)
 						end
-						
+					elseif BlendingMode == 2 then -- Add blending
+						local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
+
+						if A > 0 then
+							CanvasSetRGBA(InternalCanvas, DrawX, Y, R, G, B, 1)
+						end
 					elseif BlendingMode == 1 then -- Replace
 						CanvasSetU32(InternalCanvas, DrawX, Y, ImgGetU32(ImageData, SampleX, SampleY))
 					end
@@ -2402,7 +2444,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		Canvas:SetBuffer(SampleBuffer, X, Y, RectWidth, RectHeight)
 	end
-	
+
 	--[[
 		A much faster and simpler alternative to <code>Canvas:DrawImageRect()</code>.
 		
@@ -2411,7 +2453,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	function Canvas:DrawFastImageRect(ImageData: ImageData, Point: Vector2, RectOffset: Vector2, RectSize: Vector2)
 		Canvas:DrawFastImageRectXY(ImageData, Point.X, Point.Y, RectOffset.X, RectOffset.Y, RectSize.X, RectSize.Y)
 	end
-	
+
 	--[[
 		Draws an image with rect size and rect offset properties. Behaves much like ImageLabel's rect properties.
 		
@@ -2430,7 +2472,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		X, Y = CeilN(X), CeilN(Y)
 		RectOffsetX, RectOffsetY = FloorN(RectOffsetX), FloorN(RectOffsetY)
 		RectSizeX, RectSizeY = CeilN(RectSizeX), CeilN(RectSizeY)
-		
+
 		local ImgGetRGBA = ImageData.GetRGBA
 		local ImgGetU32 = ImageData.GetU32
 
@@ -2445,7 +2487,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		local StartY = Y
 		local EndY = Y + ImageScaledSizeY - 1
-		
+
 		-- Clipping end
 		EndX = math.min(EndX, self.CurrentResX)
 		EndY = math.min(EndY, self.CurrentResY)
@@ -2469,7 +2511,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		StartY = math.max(1, StartY)
 
 		local SampleX = SampleXStart
-		
+
 		local BlendingMode = Canvas.AlphaBlendingMode
 
 		-- Main draw loop
@@ -2494,7 +2536,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 				if BlendingMode == 0 then -- Normal
 					local R, G, B, A = ImgGetRGBA(ImageData, RoundSampleX, RoundSampleY)
-					
+
 					if A == 0 then -- No need to do any calculations for completely transparent pixels
 						SampleY += SampleYStep
 						continue
@@ -2502,13 +2544,17 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 					if A < 1 then
 						local BgR, BgG, BgB = CanvasGetRGB(InternalCanvas, DrawX, DrawY)
-						
+
 						R = Lerp(BgR, R, A)
 						G = Lerp(BgG, G, A)
 						B = Lerp(BgB, B, A)
 					end
 
 					CanvasSetRGB(InternalCanvas, DrawX, DrawY, R, G, B)
+				elseif BlendingMode == 2 then -- Add
+					local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
+					local BgA = CanvasGetAlpha(Canvas, DrawX, DrawY)
+					CanvasSetRGBA(Canvas, DrawX, DrawY, R, G, B, math.min(BgA + A, 1))
 				elseif BlendingMode == 1 then -- Replace
 					CanvasSetU32(InternalCanvas, DrawX, DrawY, ImgGetU32(ImageData, RoundSampleX, RoundSampleY))
 				end
@@ -2554,7 +2600,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
 
 		local BlendingMode = self.AlphaBlendingMode
-		
+
 		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
 
 		if not Thickness or Thickness < 1 then -- Bresenham line
@@ -2585,7 +2631,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
 					if BlendingMode == 0 then -- Normal
 						CanvasSetRGB(Canvas, X1, Y1, ColR, ColG, ColB)
-					elseif BlendingMode == 1 then -- Replace
+					elseif BlendingMode == 1 or BlendingMode == 2 then -- Replace and add
 						CanvasSetU32(Canvas, X1, Y1, ColourU32)
 					end
 				end
@@ -2643,7 +2689,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			-- Draw 2 triangles at the start and end corners
 			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour)
 			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour)
-			
+
 			-- Draw rounded caps
 			if RoundedCaps then
 				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour)
@@ -2671,18 +2717,18 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	]]
 	function Canvas:DrawTextXY(Text: string, X: number, Y: number, Colour: Color3, FontName: string?, 
 		Alignment: Enum.HorizontalAlignment?, Scale: number?, Wrap: boolean?, Spacing: number?)
-		
+
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
-		
+
 		local ColourU32 = CanvasDraw.GetColourU32(ColR, ColG, ColB, 1)
-		
+
 		local FontModule = FontsFolder:FindFirstChild(FontName or "3x6")
 
 		if not FontModule then
 			error("(!) '" .. FontName .. "' is not a valid CanvasDraw font!")
 			return
 		end
-		
+
 		-- Backwards compatability for pre 4.12 versions
 		if type(Alignment) == "number" then
 			Spacing = Wrap
@@ -2693,13 +2739,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		local FontInfo = require(FontModule)
 		local FontBitmap = FontInfo.Bitmap
-		
+
 		local BlendingMode = self.AlphaBlendingMode
 
 		Spacing = Spacing or 0
 		Scale = Scale or 1
 		X, Y = CeilN(X), CeilN(Y)
-		
+
 		local OrigX, OrigY = X, Y
 
 		Scale = ClampN(RoundN(Scale), 1, 50)
@@ -2714,13 +2760,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		for i, TextLine in pairs(TextLines) do
 			X, Y = OrigX, OrigY
-			
+
 			-- Extract individual characters from string
 			local Characters = {}
 			for _, c in utf8.codes(TextLine) do
 				table.insert(Characters, utf8.char(c))
 			end
-			
+
 			local TextLineWidth = (#Characters * (CharWidth + Spacing + FontInfo.Padding)) - Spacing  -- Formula here
 
 			if Alignment == Enum.HorizontalAlignment.Center then
@@ -2749,8 +2795,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 						if Wrap or type(Wrap) == "nil" then
 							OffsetY += CharHeight + Spacing
 							OffsetX = 0
-						--else
-						--	break -- Don't write anymore text since it's outside the canvas
+							--else
+							--	break -- Don't write anymore text since it's outside the canvas
 						end
 					end
 
@@ -2777,7 +2823,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 							if bit32band(bit32rshift(Row, OrigCharWidth - SampleX), 1) == 1 then
 								if BlendingMode == 0 then -- Normal
 									CanvasSetRGB(InternalCanvas, PlacementX, PlacementY, ColR, ColG, ColB)
-								elseif BlendingMode == 1 then -- Replace
+								elseif BlendingMode == 1 or BlendingMode == 2 then -- Replace and add
 									CanvasSetU32(InternalCanvas, PlacementX, PlacementY, ColourU32)
 								end
 							end
@@ -2845,7 +2891,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 		return PixelsArray
 	end
-	
+
 	-- <strong>DEPRECATED</strong>. Use <code>Canvas:SetRGBA()</code> or <code>Canvas:SetU32()</code> for new work!
 	@deprecated function Canvas:DrawPixel(Point: Vector2, Colour: Color3): Vector2
 		local X = CeilN(Point.X)
