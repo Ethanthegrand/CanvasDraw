@@ -1,0 +1,359 @@
+--!native
+
+local Module = {}
+
+local Lerp = math.lerp
+local bit32bor = bit32.bor
+local bit32lshift = bit32.lshift
+
+local AssetService = game:GetService("AssetService")
+
+function Module.new(ImageDataResX, ImageDataResY, Buffer)
+	local ImageData = {
+		ImageBuffer = Buffer,
+		ImageResolution = Vector2.new(ImageDataResX, ImageDataResY),
+		Width = ImageDataResX,
+		Height = ImageDataResY,
+	}
+
+	local function GetIndex(X, Y)
+		return (X + (Y - 1) * ImageDataResX) * 4 - 4
+	end
+
+	--== ImageData methods ==--
+	
+	--[[
+		Fetches a pixel from a Vector2 point on the image.
+		For more efficient and faster alternatives, try;
+		- <code>ImageData:GetU32()</code>
+		- <code>ImageData:GetRGBA()</code>
+	]]
+	function ImageData:GetPixel(Point: Vector2): (Color3, number)
+		local PixelBuffer = self.ImageBuffer
+		local X, Y = math.floor(Point.X), math.floor(Point.Y)
+		local Index = GetIndex(X, Y)
+
+		return Color3.new(buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255), buffer.readu8(PixelBuffer, Index + 3) / 255
+	end
+	
+	--[[
+		Fetches a pixel from a point on the image.
+		For more efficient and faster alternatives, try;
+		- <code>ImageData:GetU32()</code>
+		- <code>ImageData:GetRGBA()</code>
+	]]
+	function ImageData:GetPixelXY(X: number, Y: number): (Color3, number)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+
+		return Color3.new(buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255), buffer.readu8(PixelBuffer, Index + 3) / 255
+	end
+	
+	-- Returns a tuple in order of the pixel's RGB values
+	function ImageData:GetRGB(X: number, Y: number): (number, number, number)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+
+		return buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255
+	end
+	
+	-- Returns a tuple in order of the pixel's RGBA values
+	function ImageData:GetRGBA(X: number, Y: number): (number, number, number, number)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+
+		return buffer.readu8(PixelBuffer, Index) / 255, buffer.readu8(PixelBuffer, Index + 1) / 255, buffer.readu8(PixelBuffer, Index + 2) / 255, buffer.readu8(PixelBuffer, Index + 3) / 255
+	end
+	
+	-- Returns a tuple in order of the pixel's RGB values
+	function ImageData:GetU32(X: number, Y: number): number
+		local PixelBuffer = self.ImageBuffer
+		return buffer.readu32(PixelBuffer, GetIndex(X, Y))
+	end
+	
+	-- Returns a tuple in order of the pixel's alpha value
+	function ImageData:GetAlpha(X: number, Y: number): number
+		return buffer.readu8(self.ImageBuffer, GetIndex(X, Y) + 3) / 255
+	end
+	
+	--[[
+		Returns a buffer of RGBA values ranging from 0 to 255
+		
+		The size of this buffer is equal to <strong>Width × Height × 4</strong>
+	]]
+	function ImageData:GetBuffer(X: number?, Y: number?, BufferWidth: number?, BufferHeight: number?): buffer
+		local ImageBuffer = ImageData.ImageBuffer
+		
+		if X and Y and BufferWidth and BufferHeight then
+			local Width, Height = ImageData.Width, ImageData.Height
+			
+			if X < 1 or Y < 1 or X + BufferWidth - 1 > Width or Y + BufferHeight - 1 > Height then
+				warn("'ImageData:GetBuffer()' failed as the given buffer's position and size are outside the ImageData bounds")
+				return
+			end
+			
+			-- Gets a rectangular region from PointA to PointB
+			local ReturnBuffer = buffer.create(BufferWidth * BufferHeight * 4)
+
+			local ScaledWidth = BufferWidth
+
+			local OffsetY = 0
+			local OffsetX = 0
+
+			-- Clip start X
+			if X < 1 then
+				OffsetX = 1 + -X
+				ScaledWidth -= 1 + -X
+			end
+
+			-- Clip width X
+			if X + BufferWidth - 1 > Width then
+				ScaledWidth -= (X + BufferWidth - 2) - Width + 1
+			end
+
+			-- Clip start Y
+			if Y < 1 then
+				OffsetY = 1 + -Y
+			end
+
+			local SampleStartX = 1 + OffsetX
+
+			if SampleStartX > BufferWidth then return end
+
+			for ImgY = 1 + OffsetY, BufferHeight do
+				local PlacementY = Y + ImgY - 1
+
+				if PlacementY > Height then break end
+
+				local ImageBufferStartIndex = (SampleStartX + (ImgY - 1) * BufferWidth) * 4 - 4
+				local DrawStartIndex = (X + OffsetX + (PlacementY - 1) * Width) * 4 - 4
+
+				-- Copy a row of the image straight onto the main buffer
+				buffer.copy(
+					ReturnBuffer,
+					ImageBufferStartIndex,
+					ImageBuffer,
+					DrawStartIndex,
+					ScaledWidth * 4
+				)
+			end
+
+			return ReturnBuffer
+		else
+			local ReturnBuffer = buffer.create(ImageDataResX * ImageDataResY * 4)
+			buffer.copy(ReturnBuffer, 0, ImageBuffer)
+
+			return ReturnBuffer
+		end
+
+	end
+	
+	--[[
+		Takes a buffer of RGBA unsigned 8 bit int values (range from 0 to 255) to render all pixel on the canvas.
+		
+		The size of the buffer is assumed to be <strong>Width × Height × 4</strong>
+	]]
+	function ImageData:SetBuffer(Buffer: buffer, X: number?, Y: number?, BufferWidth: number?, BufferHeight: number?)
+		-- Set a rectangular region from PointA to PointB
+		local ImageBuffer = self.ImageBuffer
+		
+		if X and Y and BufferWidth and BufferHeight then
+			if buffer.len(Buffer) ~= BufferWidth * BufferHeight * 4 then
+				warn("'Canvas:SetBuffer()' failed as the given buffer's size is not equal to the given 'Size' parameter")
+				return
+			end
+			
+			local Width, Height = self.Width, self.Height
+			
+			local ScaledWidth = BufferWidth
+
+			local OffsetY = 0
+			local OffsetX = 0
+
+			-- Clip start X
+			if X < 1 then
+				OffsetX = 1 + -X
+				ScaledWidth -= 1 + -X
+			end
+
+			-- Clip width X
+			if X + BufferWidth - 1 > Width then
+				ScaledWidth -= (X + BufferWidth - 2) - Width + 1
+			end
+
+			-- Clip start Y
+			if Y < 1 then
+				OffsetY = 1 + -Y
+			end
+
+			local SampleStartX = 1 + OffsetX
+
+			if SampleStartX > BufferWidth then return end
+			
+			if X > Width then return end
+
+			for ImgY = 1 + OffsetY, BufferHeight do
+				local PlacementY = Y + ImgY - 1
+
+				if PlacementY > Height then break end
+
+				local ImageBufferStartIndex = (SampleStartX + (ImgY - 1) * BufferWidth) * 4 - 4
+				local DrawStartIndex = (X + OffsetX + (PlacementY - 1) * Width) * 4 - 4
+
+				-- Copy a row of the image straight onto the main buffer
+				buffer.copy(
+					ImageBuffer,
+					DrawStartIndex,
+					Buffer,
+					ImageBufferStartIndex,
+					ScaledWidth * 4
+				)
+			end
+		else
+			-- Direct replacement
+			buffer.copy(ImageBuffer, 0, Buffer)
+		end
+	end
+	
+	-- Tints the image with a colour by a percentage
+	function ImageData:Tint(Colour: Color3, T: number)
+		local PixelBuffer = self.ImageBuffer
+		local R, G, B = Colour.R * 255, Colour.B * 255, Colour.G * 255
+		
+		for i = 1, ImageDataResX * ImageDataResY * 4, 4 do
+			i -= 1
+			buffer.writeu8(PixelBuffer, i, Lerp(buffer.readu8(PixelBuffer, i), R, T))
+			buffer.writeu8(PixelBuffer, i + 1, Lerp(buffer.readu8(PixelBuffer, i + 1), G, T))
+			buffer.writeu8(PixelBuffer, i + 2, Lerp(buffer.readu8(PixelBuffer, i + 2), B, T))
+		end
+	end
+	
+	-- Tints the image with a colour by a percentage
+	function ImageData:TintRGB(R: number, G: number, B: number, T: number)
+		local PixelBuffer = self.ImageBuffer
+		R, G, B = R * 255, B * 255, G * 255
+
+		for i = 1, ImageDataResX * ImageDataResY * 4, 4 do
+			i -= 1
+			buffer.writeu8(PixelBuffer, i, Lerp(buffer.readu8(PixelBuffer, i), R, T))
+			buffer.writeu8(PixelBuffer, i + 1, Lerp(buffer.readu8(PixelBuffer, i + 1), G, T))
+			buffer.writeu8(PixelBuffer, i + 2, Lerp(buffer.readu8(PixelBuffer, i + 2), B, T))
+		end
+	end
+	
+	-- Flips the pixel contents of the ImageData either on it's horizontal or vertical axis
+	function ImageData:Flip(Vertical: boolean?)
+		local TempData = ImageData:Clone()
+		local Width, Height = ImageData.Width, ImageData.Height
+		
+		if Vertical then
+			for Y = 1, Height do
+				ImageData:SetBuffer(TempData:GetBuffer(1, Height - Y + 1, Width, 1), 1, Y, Width, 1)
+			end
+		else
+			for X = 1, Width do
+				ImageData:SetBuffer(TempData:GetBuffer(Width - X + 1, 1, 1, Height), X, 1, 1, Height)
+			end
+		end
+	end
+	
+	--[[
+		Sets a pixel on the canvas
+		For more efficient and faster alternatives, try;
+		- <code>ImageData:SetU32()</code>
+		- <code>ImageData:SetRGBA()</code>
+	]]
+	function ImageData:SetPixel(X: number, Y: number, Colour: Color3, Alpha: number?)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+		buffer.writeu8(PixelBuffer, Index, Colour.R * 255)
+		buffer.writeu8(PixelBuffer, Index + 1, Colour.G * 255)
+		buffer.writeu8(PixelBuffer, Index + 2, Colour.B * 255)
+		buffer.writeu8(PixelBuffer, Index + 3, (Alpha or 1) * 255)
+	end
+	
+	-- Sets an RGB value to the pixel on the image
+	function ImageData:SetRGB(X: number, Y: number, R: number, G: number, B: number)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+		buffer.writeu8(PixelBuffer, Index, R * 255)
+		buffer.writeu8(PixelBuffer, Index + 1, G * 255)
+		buffer.writeu8(PixelBuffer, Index + 2, B * 255)
+	end
+	
+	-- Sets an RGBA value to the pixel on the image
+	function ImageData:SetRGBA(X: number, Y: number, R: number, G: number, B: number, A: number)
+		local PixelBuffer = self.ImageBuffer
+		local Index = GetIndex(X, Y)
+		buffer.writeu32(PixelBuffer, GetIndex(X, Y), bit32bor(
+			bit32lshift(A * 255, 24),
+			bit32lshift(B * 255, 16),
+			bit32lshift(G * 255, 8),
+			R * 255)
+		)
+	end
+	
+	function ImageData:SetU32(X: number, Y: number, Value: number)
+		local PixelBuffer = self.ImageBuffer
+		buffer.writeu32(PixelBuffer, GetIndex(X, Y), Value)
+	end
+	
+	-- Sets an alpha value to the pixel on the image
+	function ImageData:SetAlpha(X: number, Y: number, Alpha: number)
+		buffer.writeu8(self.ImageBuffer, GetIndex(X, Y) + 3, Alpha * 255)
+	end
+	
+	-- Returns a deep copy of the ImageData object
+	function ImageData:Clone(): typeof(ImageData)
+		local Width, Height = self.Width, self.Height
+		
+		local ClonedBuffer = buffer.create(Width * Height * 4)
+		buffer.copy(ClonedBuffer, 0, self.ImageBuffer)
+		
+		return Module.new(Width, Height, ClonedBuffer)
+	end
+	
+	-- Removes all references and content in the ImageData, freeing memory.
+	function ImageData:Destroy()
+		ImageData.ImageBuffer = nil
+		ImageData = nil
+	end
+	
+	--[[
+		Creates a "baked" static content from the ImageData. This can be used in any instance with an image content property
+		(such as; Decal, Texture, ImageLabel, MeshPart, etc)
+		
+		This static content works just like any URI-backed image asset with an asset ID, however this only lasts for
+		the lifetime of the data model / server.
+		
+		If called from the server, the returned content will replicate down to all clients.
+		
+		NOTE: The image resolution must be at or under 1024x1024
+	]]
+	function ImageData:CreateImageContent(): Content
+		local Res = ImageData.ImageResolution
+		if Res.X > 1024 or Res.Y > 1024 then
+			warn("'ImageData:GetImageContent()' failed; Resolution limit of 1024x1024 exceeded!")
+			return Content.none
+		end
+		
+		local TempEditableImage = AssetService:CreateEditableImage({Size = Res})
+		if not TempEditableImage then
+			warn("'ImageData:GetImageContent()' failed; editable memory budget exceeded!")
+			return Content.none 
+		end
+		
+		TempEditableImage:WritePixelsBuffer(Vector2.zero, Res, ImageData.ImageBuffer)
+		
+		local Result, ImageContent = AssetService:CreateDataModelContentAsync(Content.fromObject(TempEditableImage))
+		if Result ~= Enum.CreateContentResult.Success then
+			warn("'ImageData:GetImageContent()' failed; " .. tostring(Result.Name))
+		end
+
+		return ImageContent -- Will return blank if generating content fails
+	end
+
+	return ImageData
+end
+
+return Module
