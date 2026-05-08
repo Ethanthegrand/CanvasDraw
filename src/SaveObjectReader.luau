@@ -1,4 +1,13 @@
 --!native
+--!optimize 2
+
+--[[
+	The main module which handles loading SaveObjects, which are offline texture instances that are stored in the place itself
+	rather outside on the cloud.
+	
+	This module is designed to be backwards compataible and be able to load any version of the CanvasDraw SaveObject along with
+	other formats such as an OSGL texture module
+]]
 
 local SaveObjReader = {}
 
@@ -6,6 +15,30 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
 local StringCompressor = require(script.Parent:WaitForChild("StringCompressor"))
+
+function SaveObjReader.ReadV4(SaveObject, SlowLoad) -- v4.19.0 and above
+	local Resolution = SaveObject:GetAttribute("Resolution")
+	local PixelBufferSize = SaveObject:GetAttribute("BufferSize")
+	local ChunkLength = SaveObject:GetAttribute("ChunkSize")
+	local Width, Height = Resolution.X, Resolution.Y
+
+	local PixelBuffer = buffer.create(PixelBufferSize)
+	local CurrentBufferIndex = 0
+
+	-- Decompress the data
+	local ChunkCount = #SaveObject:GetChildren()
+
+	for i = 0, ChunkCount - 1 do
+		if SlowLoad and i ~= 0 then task.wait() end
+		
+		local ChunkBuffer = HttpService:JSONDecode(require(SaveObject[i]))
+		local BufferIndex = i * ChunkLength
+		
+		buffer.copy(PixelBuffer, BufferIndex, ChunkBuffer, 0)
+	end
+
+	return PixelBuffer, Width, Height
+end
 
 function SaveObjReader.ReadV3(SaveObject, SlowLoad) -- v4.9.0 and above
 	local Resolution = SaveObject:GetAttribute("Resolution")

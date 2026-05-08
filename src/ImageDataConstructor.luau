@@ -6,6 +6,8 @@ local Lerp = math.lerp
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
 
+local AssetService = game:GetService("AssetService")
+
 function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	local ImageData = {
 		ImageBuffer = Buffer,
@@ -138,7 +140,7 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 
 			return ReturnBuffer
 		else
-			local ReturnBuffer = buffer.create(BufferWidth * BufferHeight * 4)
+			local ReturnBuffer = buffer.create(ImageDataResX * ImageDataResY * 4)
 			buffer.copy(ReturnBuffer, 0, ImageBuffer)
 
 			return ReturnBuffer
@@ -309,6 +311,46 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 		buffer.copy(ClonedBuffer, 0, self.ImageBuffer)
 		
 		return Module.new(Width, Height, ClonedBuffer)
+	end
+	
+	-- Removes all references and content in the ImageData, freeing memory.
+	function ImageData:Destroy()
+		ImageData.ImageBuffer = nil
+		ImageData = nil
+	end
+	
+	--[[
+		Creates a "baked" static content from the ImageData. This can be used in any instance with an image content property
+		(such as; Decal, Texture, ImageLabel, MeshPart, etc)
+		
+		This static content works just like any URI-backed image asset with an asset ID, however this only lasts for
+		the lifetime of the data model / server.
+		
+		If called from the server, the returned content will replicate down to all clients.
+		
+		NOTE: The image resolution must be at or under 1024x1024
+	]]
+	function ImageData:CreateImageContent(): Content
+		local Res = ImageData.ImageResolution
+		if Res.X > 1024 or Res.Y > 1024 then
+			warn("'ImageData:GetImageContent()' failed; Resolution limit of 1024x1024 exceeded!")
+			return Content.none
+		end
+		
+		local TempEditableImage = AssetService:CreateEditableImage({Size = Res})
+		if not TempEditableImage then
+			warn("'ImageData:GetImageContent()' failed; editable memory budget exceeded!")
+			return Content.none 
+		end
+		
+		TempEditableImage:WritePixelsBuffer(Vector2.zero, Res, ImageData.ImageBuffer)
+		
+		local Result, ImageContent = AssetService:CreateDataModelContentAsync(Content.fromObject(TempEditableImage))
+		if Result ~= Enum.CreateContentResult.Success then
+			warn("'ImageData:GetImageContent()' failed; " .. tostring(Result.Name))
+		end
+
+		return ImageContent -- Will return blank if generating content fails
 	end
 
 	return ImageData

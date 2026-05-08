@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 31/1/2026
-	Version: 4.18.0
+	Last updated: 8/5/2026
+	Version: 4.19.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -30,23 +30,24 @@
 	CanvasDraw
 	====================================================================================================================
 
-	CanvasDraw Functions:
+	>> CanvasDraw Functions:
 	
 	   - CanvasDraw.new(Parent, Resolution?, CanvasColour?, Blur?) : Canvas
 	      * Constructs and returns a canvas class/object.
 	      * The parent can be the following: 
 	        GuiObject (such as Frame) or MeshPart, Decal, etc
-	      * NOTE: This may fail to create and return a canvas if a memory limit is exceeded
+	      * NOTE: This may fail to create and return a canvas if EditableImage memory budget is exceeded
 	
-	   - CanvasDraw.GetImageData(SaveObject, SlowLoad?) : ImageData [YIELDS?]
+	   - CanvasDraw.GetImageData(SaveObject, Slowload?) : ImageData
 	      * Reads the selected SaveObject's compressed data and returns an ImageData object
 	      * When SlowLoad is set to true, this method will yield and slowly decompress the SaveObject
-	        to avoid large lag spikes on the client with large images
-	      * OSGL texture modules are compatible
+	        to avoid lag spikes on the client with large images (recommended for images above 1024x1024)
+	      * OSGL texture modules are also compatible
 	      
+	   - CanvasDraw.GetImageDataFromContent(ImageContent, MaxWidth?, MaxHeight?) : ImageData? [YIELDS]
 	   - CanvasDraw.GetImageDataFromTextureId(TextureId, MaxWidth?, MaxHeight?) : ImageData? [YIELDS]
-	      * Loads the selected roblox image asset and returns an ImageData class if succeeded.
-	      * This method will yield as it uses AssetService!
+	      * Loads an image asset and returns an ImageData object if succeeded.
+	      * This method may yield as it uses AssetService!
 	      * The optional 'MaxWidth' and 'MaxHeight' parameters will rescale the image to fit within 
 	        your limits while maintaining the correct aspect ratio.
 	      * NOTE: Currently, this method will not return ImageData if the user or place does not own the
@@ -55,14 +56,15 @@
 	   - CanvasDraw.CreateBlankImageData(Width, Height) : ImageData
 	      * Creates and returns a new blank ImageData object
 	      
-	   - CanvasDraw.CreateSaveObject(ImageData) : Instance
-	      * Returns a physical save object (a folder instance) containing compressed ImageData.
-	      * This instance can be stored anywhere in your place and can be loaded into CanvasDraw.
+	   - CanvasDraw.CreateSaveObject(ImageData) : Instance [PLUGIN ONLY]
+	      * Returns a physical save object (an instance) containing compressed ImageData.
+	      * This instance can be stored anywhere in your place and can be loaded into CanvasDraw when needed.
 		  * Intended for plugin use.
 		  
-	   - CanvasDraw.CompressImageData(ImageData) : CompressedImageData
-	      * Returns a compressed image in the form of a very small table which takes advantage 
-	        of buffers and JSON encoding.
+	   - CanvasDraw.CompressImageData(ImageData, CompressionLevel) : CompressedImageData
+	      * Returns a compressed image in the form of a very small object which uses zstd compression.
+	      * An optional CompressionLevel parameter can be used to control the compression.
+	        This can be a number ranging from -7 to 22.
 	      * Very useful with datastores.
 	      
 	   - CanvasDraw.DecompressImageData(CompressedImageData) : ImageData
@@ -80,7 +82,7 @@
 	        from a U32 number (which can be used to represent an RGBA colour)
 	      * The returned colour channels each range from 0 to 1
 	      
-	CanvasDraw Properties:
+	>> CanvasDraw Properties:
 	
 	   - CanvasDraw.BlendingModes : table
 	      * Enums for the canvas property 'AlphaBlendingMode'
@@ -105,7 +107,7 @@
 	Canvas
 	====================================================================================================================
 	
-	Canvas Properties:
+	>> Canvas Properties:
 	
 	   - AutoRender : boolean
 	      * Determines whether the canvas will automatically update and render the pixels on the canvas every frame.
@@ -151,13 +153,14 @@
 	      * The current height of the canvas.
 	      
 	  
-	Canvas Drawing Methods:
+	>> Canvas Drawing Methods:
 	      
 	   - Canvas:SetBuffer(PixelBuffer, X?, Y? BufferWidth? BufferHeight?)
 	      * Sets the canvas pixels with a buffer of RGBA values
 	      * NOTE: The size of the buffer has to be equal to: Width * Height * 4
 		
 	   - Canvas:Fill(Colour, Alpha)
+	   - Canvas:FillRGBA(R, G, B, A)
 	      * Replaces every pixel on the canvas with a colour
 	   
 	   - Canvas:Clear()
@@ -165,18 +168,16 @@
 	
 	   - Canvas:FloodFill(Point, Colour, Alpha?)
 	      * This function will fill an area of pixels on the canvas of the specific colour that your point is on.
-	      * An array will also be returned containing all pixel points that were used to fill with.
-	      * NOTE: This function is not very fast! Do not use for real-time engines
+	      * NOTE: This function is not very fast! Do not use for real-time rendering
 	   
 	   - Canvas:SetRGB(X, Y, R, G, B)
 	   - Canvas:SetRGBA(X, Y, R, G, B, A)
 	   - Canvas:SetU32(X, Y, ColourU32)
 	   - Canvas:SetAlpha(X, Y, Alpha)
-	   - Canvas:SetPixel(X, Y, Color3)
 	      * Places a pixel on the canvas
 	      
-	   - Canvas:DrawLine(PointA, PointB, Colour, Thickness?, RoundedCaps?)
-	      * Draws a simple pixel line from two points on the canvas.
+	   - Canvas:DrawLine(PointA, PointB, Colour, Alpha?, Thickness?, RoundedCaps?)
+	      * Draws a simple pixel line from two points on the canvas with a desired thickness.
 	      
 	   - Canvas:DrawCircle(Point, Radius, Colour, Alpha?, Fill?)
 	      * Draws a circle at a desired point with a set radius and colour.
@@ -192,7 +193,7 @@
 	      * Supports alpha blending when the 'TransparencyEnabled' parameter is set to true.
 	      
 	   - Canvas:SetBufferFromImage(ImageData)
-	      * A super fast alternative to <code>Canvas:DrawImage()</code>, but without transformations
+	      * A super fast alternative to Canvas:DrawImage(), but without transformations
 		  * This method draws an image to the canvas using very little computational power.
 		  * NOTE: The image's resolution has to be the same as the canvas' resolution.
 	      
@@ -228,10 +229,8 @@
 	      * There are currently 7 fonts that can be used from 'CanvasDraw.Fonts'
 	
 	 
-	Canvas Fetch Methods:
+	>> Canvas Fetch Methods:
 	
-	   - Canvas:GetPixel(Point) : Color3
-	   - Canvas:GetPixelXY(X, Y) : Color3
 	   - Canvas:GetRGB(X, Y) : number, number, number
 	   - Canvas:GetRGBA(X, Y) : number, number, number, number
 	   - Canvas:GetAlpha(X, Y) : number
@@ -267,8 +266,7 @@
 	   - Canvas:CreateImageDataFromCanvas(PointA?, PointB?) : ImageData
 	      * Returns an ImageData class/table from the canvas pixels from PointA to PointB or the whole canvas.
 	         
-	   
-	Other Canvas Methods:
+	>> Other Canvas Methods:
 	
 	   - Canvas:SetStretchToFit(Enable?)
 	      * Determines wether or not the canvas should maintain it's aspect ratio, or stretch the pixels to fit the parent
@@ -279,7 +277,7 @@
 	
 	   - Canvas:Resize(NewResolution)
 	      * Resizes the canvas to a new desired resolution
-	      * NOTE: All contents will be cleared. 
+	      * NOTE: All pixel contents will be cleared. 
 	        If you want to scale the canvas content, you will have to redraw 
 	        the image after resizing
 	        
@@ -293,7 +291,7 @@
 	   - Canvas:Render()
 	      * Manually update/render the canvas (if Canvas.AutoRender is set to 'false')
 	
-	Canvas Events:
+	>> Canvas Events:
 	
 	   - Canvas.OnRendered(DeltaTime)
 	      * Fires whenever the canvas renders automatically.
@@ -304,17 +302,14 @@
 	ImageData
 	====================================================================================================================
 	
-	ImageData Methods:
+	>> ImageData Methods:
 	   
-	   - ImageData:SetPixel(X, Y, Colour, Alpha)
 	   - ImageData:SetRGB(X, Y, R, G, B)
 	   - ImageData:SetRGBA(X, Y, R, G, B, A)
 	   - ImageData:SetAlpha(X, Y, A)
 	   - ImageData:SetU32(X, Y, ColourU32)
 	      * Draws a pixel to the image
 	   
-	   - ImageData:GetPixel(Point) : Color3
-	   - ImageData:GetPixelXY(X, Y) : Color3
 	   - ImageData:GetRGB(X, Y) : number, number, number
 	   - ImageData:GetRGBA(X, Y) : number, number, number, number
 	   - ImageData:GetAlpha(X, Y) : number
@@ -341,7 +336,7 @@
 	      * Returns a unique copy of the image data object
 	
 	
-	ImageData Properties:
+	>> ImageData Properties:
 	
 	   - ImageData.Width : number [READ ONLY]
 	      * The width of the image in pixels.
@@ -352,7 +347,7 @@
 	   - ImageData.ImageResolution : Vector2 [READ ONLY]
 	     * A vector of the width and height of the image in pixels.
 	     
-	   - ImageData.ImageBuffer : buffer [READ ONLY]
+	   - ImageData.ImageBuffer : buffer
 	      * The buffer object that stores the pixels for the image.    
 
 ]]
@@ -362,6 +357,7 @@ local UserInputService = game:GetService("UserInputService")
 local AssetService = game:GetService("AssetService")
 local HttpService = game:GetService("HttpService")
 local GuiService = game:GetService("GuiService")
+local EncodingService = game:GetService("EncodingService")
 
 -- Modules
 local FastCanvas = require(script:WaitForChild("FastCanvas"))
@@ -391,8 +387,7 @@ CanvasDraw.Fonts = {
 }
 
 -- These variables are only accessed by this module [DO NOT EDIT!]
-local SaveObjectResolutionLimit = Vector2.new(1024, 1024)
-local ChunkLimit = 120000 -- Ensures our strings will stay under 200 KB
+local SaveObjectChunkSize = 190000
 
 local GridTextures = {
 	Small = "rbxassetid://15840244068",
@@ -451,7 +446,7 @@ end
 --[[
 	Creates and returns a new canvas object that can be parented to either a GuiObject (such as a frame), Decal, Texture or MeshPart.
 	
-	Resolution limit is currently 1024x1024
+	Resolution limit is currently 1024x1024 (or 2048x2048 for plugins)
 ]]
 
 function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: Color3?, Blur: boolean?)
@@ -1341,6 +1336,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 	function Canvas:GetCirclePoints(Point: Vector2, Radius: number, Fill: boolean?): {Vector2}
 		local X, Y = CeilN(Point.X), CeilN(Point.Y)
+		Radius = CeilN(Radius)
 
 		local PointsArray = {}
 
@@ -1348,50 +1344,76 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		local dx, dy, err = Radius, 0, 1 - Radius
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
 
-		local function CreatePixelForCircle(X, Y)
-			if X < 1 or Y < 1 or X > ResX or Y > ResY then return end
-			TableInsert(PointsArray, Vector2New(X, Y))
-		end
-
-		local function CreateLineForCircle(XA, YA, XB, YB)
-			-- Rectangles have built in clipping
-			local Line = Canvas:GetRectanglePoints(Vector2New(XA, YA), Vector2New(XB, YB), true)
-
-			for i, Point in pairs(Line) do
-				TableInsert(PointsArray, Point)
+		local function CreatePixelForCircle(DrawX, DrawY)
+			if DrawX > ResX or DrawY > ResY or DrawX < 1 or DrawY < 1 then
+				return -- Clip
 			end
+			TableInsert(PointsArray, Vector2New(DrawX, DrawY))
+		end
+		
+		local function CreateLineForCircle(StartX, EndX, Y)
+			StartX = math.clamp(StartX, 1, ResX)
+			EndX = math.clamp(EndX, 1, ResX)
+			Y = math.clamp(Y, 1, ResY)
+
+			for X = StartX, EndX do
+				TableInsert(PointsArray, Vector2New(X, Y))
+			end
+		end
+		
+		if Radius < 1 then
+			if Radius == 0 then
+				CreatePixelForCircle(X, Y)
+			end
+			return PointsArray
 		end
 
 		if Fill or type(Fill) == "nil" then
-			while dx >= dy do -- Filled circle
-				CreateLineForCircle(X + dx, Y + dy, X - dx, Y + dy)
-				CreateLineForCircle(X + dx, Y - dy, X - dx, Y - dy)
-				CreateLineForCircle(X + dy, Y + dx, X - dy, Y + dx)
-				CreateLineForCircle(X + dy, Y - dx, X - dy, Y - dx)
+			-- Iterate over each row of the bounding box
+			for y = -Radius, Radius do
+				local rowY = Y + y
 
-				dy = dy + 1
-				if err < 0 then
-					err = err + 2 * dy + 1
-				else
-					dx, err = dx - 1, err + 2 * (dy - dx) + 1
-				end
+				if rowY < 1 then continue end
+				if rowY > ResY then break end
+
+				-- Determine the horizontal extent of the circle at this y position
+				local HorizontalRadius = math.sqrt(Radius * Radius - y * y + Radius / 2)
+
+				local startX = math.ceil(-HorizontalRadius) -- Round up to avoid gaps
+				local endX = math.floor(HorizontalRadius)  -- Round down to avoid gaps
+
+				CreateLineForCircle(X + startX, X + endX, rowY)
 			end
 		else
-			while dx >= dy do -- Circle outline
-				CreatePixelForCircle(X + dx, Y + dy)
-				CreatePixelForCircle(X - dx, Y + dy)
+			local dx, dy, err = Radius, 0, 1 - Radius
+
+			while dx >= dy do
+				-- (dx, dy)
+				if dy ~= 0 then
+					CreatePixelForCircle(X + dx, Y + dy)
+					CreatePixelForCircle(X - dx, Y + dy)
+				end
+
 				CreatePixelForCircle(X + dx, Y - dy)
 				CreatePixelForCircle(X - dx, Y - dy)
-				CreatePixelForCircle(X + dy, Y + dx)
-				CreatePixelForCircle(X - dy, Y + dx)
-				CreatePixelForCircle(X + dy, Y - dx)
-				CreatePixelForCircle(X - dy, Y - dx)
+
+				-- (dy, dx) — ONLY if they are different
+				if dx ~= dy then
+					CreatePixelForCircle(X + dy, Y + dx)
+					CreatePixelForCircle(X + dy, Y - dx)
+
+					if dy ~= 0 then
+						CreatePixelForCircle(X - dy, Y + dx)
+						CreatePixelForCircle(X - dy, Y - dx)
+					end
+				end
 
 				dy = dy + 1
 				if err < 0 then
 					err = err + 2 * dy + 1
 				else
-					dx, err = dx - 1, err + 2 * (dy - dx) + 1
+					dx = dx - 1
+					err = err + 2 * (dy - dx) + 1
 				end
 			end
 		end
@@ -1811,31 +1833,33 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		else
 			local dx, dy, err = Radius, 0, 1 - Radius
 
-			while dx >= dy do -- Circle outline
+			while dx >= dy do
+				-- (dx, dy)
 				if dy ~= 0 then
 					CreatePixelForCircle(X + dx, Y + dy)
 					CreatePixelForCircle(X - dx, Y + dy)
 				end
 
-				--if dy ~= dx then
 				CreatePixelForCircle(X + dx, Y - dy)
 				CreatePixelForCircle(X - dx, Y - dy)
-				CreatePixelForCircle(X + dy, Y + dx)
-				CreatePixelForCircle(X + dy, Y - dx)
-				--end
 
-				if dy ~= 0 then
-					CreatePixelForCircle(X - dy, Y + dx)
-					CreatePixelForCircle(X - dy, Y - dx)
+				-- (dy, dx) — ONLY if they are different
+				if dx ~= dy then
+					CreatePixelForCircle(X + dy, Y + dx)
+					CreatePixelForCircle(X + dy, Y - dx)
+
+					if dy ~= 0 then
+						CreatePixelForCircle(X - dy, Y + dx)
+						CreatePixelForCircle(X - dy, Y - dx)
+					end
 				end
-
-
 
 				dy = dy + 1
 				if err < 0 then
 					err = err + 2 * dy + 1
 				else
-					dx, err = dx - 1, err + 2 * (dy - dx) + 1
+					dx = dx - 1
+					err = err + 2 * (dy - dx) + 1
 				end
 			end
 		end
@@ -2586,8 +2610,8 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		Otherwise, a custom triangle-based line will be drawn for the thickness with an option for round or flat ends with the 
 		<strong>RoundedCaps</strong> parameter.
 	]]
-	function Canvas:DrawLine(PointA: Vector2, PointB: Vector2, Colour: Color3, Thickness: number?, RoundedCaps: boolean?)
-		Canvas:DrawLineXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Thickness, RoundedCaps)
+	function Canvas:DrawLine(PointA: Vector2, PointB: Vector2, Colour: Color3, Alpha: number?, Thickness: number?, RoundedCaps: boolean?)
+		Canvas:DrawLineXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Alpha, Thickness, RoundedCaps)
 	end
 
 	--[[
@@ -2595,9 +2619,11 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		Otherwise, a custom triangle-based line will be drawn for the thickness with an option for round or flat ends with the 
 		<strong>RoundedCaps</strong> parameter.
 	]]
-	function Canvas:DrawLineXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Thickness: number?, RoundedCaps: boolean?)
+	function Canvas:DrawLineXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Thickness: number?, RoundedCaps: boolean?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
+		
+		Alpha = Alpha or 1
 
 		local BlendingMode = self.AlphaBlendingMode
 
@@ -2629,10 +2655,26 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 			local function PlotPixel()
 				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
-					if BlendingMode == 0 then -- Normal
-						CanvasSetRGB(Canvas, X1, Y1, ColR, ColG, ColB)
-					elseif BlendingMode == 1 or BlendingMode == 2 then -- Replace and add
-						CanvasSetU32(Canvas, X1, Y1, ColourU32)
+					if BlendingMode == 0 and Alpha > 0 then -- Normal
+						local R2 = ColR
+						local G2 = ColG 
+						local B2 = ColB
+
+						if Alpha < 1 then
+							local BgR, BgG, BgB = InternalCanvas:GetRGB(X1, Y1)
+
+							R2 = Lerp(BgR, ColR, Alpha)
+							G2 = Lerp(BgG, ColG, Alpha)
+							B2 = Lerp(BgB, ColB, Alpha)
+						end
+
+						InternalCanvas:SetRGB(X1, Y1, R2, G2, B2)
+					elseif BlendingMode == 2 and Alpha < 1 then
+						-- Add blending
+						local BgA = CanvasGetAlpha(Canvas, X1, Y1)
+						CanvasSetRGBA(Canvas, X1, Y1, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
+					elseif BlendingMode == 1 or Alpha >= 1 then
+						InternalCanvas:SetU32(X1, Y1, ColourU32)
 					end
 				end
 			end
@@ -2687,13 +2729,13 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local EndCornerY2 = math.round(Y2 + math.cos(Theta - PiHalf) * Thickness)
 
 			-- Draw 2 triangles at the start and end corners
-			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour)
-			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour)
+			Canvas:DrawTriangleXY(StartCornerX1, StartCornerY1, StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, Colour, Alpha)
+			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour, Alpha)
 
 			-- Draw rounded caps
 			if RoundedCaps then
-				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour)
-				Canvas:DrawCircleXY(X2, Y2, Thickness, Colour)
+				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour, Alpha)
+				Canvas:DrawCircleXY(X2, Y2, Thickness, Colour, Alpha)
 			end
 		end
 
@@ -2946,46 +2988,57 @@ end
 	
 	Set the <strong>SlowLoad</strong> parameter to true to yield your code to avoid lag spikes when reading larger SaveObjects
 ]]
-function CanvasDraw.GetImageData(SaveObject: Instance, SlowLoad: boolean?)
-	local PixelArray
+function CanvasDraw.GetImageData(SaveObject: Instance, SlowLoad: boolean?): ImageData
+	local PixelBuffer
 	local Width, Height
 
-	-- Backwards compatability
-	if SaveObject:GetAttribute("Resolution") and SaveObject:FindFirstChild("Chunk1") then
-		-- Modern SaveObject (v3)
-		PixelArray, Width, Height = SaveObjectReader.ReadV3(SaveObject, SlowLoad)
-	elseif SaveObject:GetAttribute("Colour") then
-		-- Legacy SaveObject (v2)
-		PixelArray, Width, Height = SaveObjectReader.ReadV2(SaveObject)
-	elseif SaveObject:GetAttribute("ImageColours") then
-		-- Legacy SaveObject (v1)
-		PixelArray, Width, Height = SaveObjectReader.ReadV1(SaveObject)
-	elseif SaveObject:IsA("ModuleScript") then
-		-- OSGL image object
-		PixelArray, Width, Height = SaveObjectReader.ReadOSGL(SaveObject)
-	else
-		error("CanvasDraw Module Error | " .. SaveObject.Name .. " is not a valid SaveObject!")
-	end
+	local SaveObjVersion = SaveObject:GetAttribute("Version")
 
+	-- Backwards compatability
+	local Success, ErrMsg = pcall(function()
+		if SaveObjVersion and SaveObjVersion == 1 then
+			-- Current version
+			PixelBuffer, Width, Height = SaveObjectReader.ReadV4(SaveObject, SlowLoad)
+		elseif SaveObject:GetAttribute("Resolution") and SaveObject:FindFirstChild("Chunk1") then
+			-- v3
+			PixelBuffer, Width, Height = SaveObjectReader.ReadV3(SaveObject, SlowLoad)
+		elseif SaveObject:GetAttribute("Colour") then
+			-- v2
+			PixelBuffer, Width, Height = SaveObjectReader.ReadV2(SaveObject)
+		elseif SaveObject:GetAttribute("ImageColours") then
+			-- v1
+			PixelBuffer, Width, Height = SaveObjectReader.ReadV1(SaveObject)
+		elseif SaveObject:IsA("ModuleScript") then
+			-- OSGL image object
+			PixelBuffer, Width, Height = SaveObjectReader.ReadOSGL(SaveObject)
+		else
+			error("CanvasDraw Module Error | " .. SaveObject.Name .. " is not a valid SaveObject or module is out-of-date!")
+			return nil
+		end
+	end)
+
+	if not Success and ErrMsg then
+		-- SaveObject may be corrupted
+		warn("CanvasDraw.GetImageData() failed: The SaveObject (" .. SaveObject:GetFullName() .. ") is corrupted and cannot be read! | ", ErrMsg)
+		return nil
+	end
 	-- Convert the SaveObject into image data
 
-	return ImageDataConstructor.new(Width, Height, PixelArray)
+	return ImageDataConstructor.new(Width, Height, PixelBuffer)
 end
 
 --[[
-	Returns an ImageData object from a roblox image asset from an image/texture ID.
+	Returns an ImageData object from an image 'content' object.
 	
-	This method may return nil if it fails to fetch the asset.
-	
-	This method will yield your code.
+	There are also an optional <em>MaxWidth</em> and <em>MaxHeight</em> parameters to limit resolution if needed
 	
 	<strong>NOTE:</strong> Currently, only texture assets owned by the creator of the place can be used.
 ]]
-function CanvasDraw.GetImageDataFromTextureId(TextureId: string, MaxWidth: number?, MaxHeight: number?)
+function CanvasDraw.GetImageDataFromContent(ImageContent: Content, MaxWidth: number?, MaxHeight: number?)
 	local EditableImage
 
 	local Success, ErrorMessage = pcall(function()
-		EditableImage = AssetService:CreateEditableImageAsync(Content.fromUri(TextureId))
+		EditableImage = AssetService:CreateEditableImageAsync(ImageContent)
 	end)
 
 	if Success and EditableImage then
@@ -3037,8 +3090,27 @@ function CanvasDraw.GetImageDataFromTextureId(TextureId: string, MaxWidth: numbe
 
 		return NewImageData
 	else
-		warn("CanvasDraw.GetImageDataFromTextureId: ", ErrorMessage)
+		warn("'CanvasDraw.GetImageDataFromContent()' failed: ", ErrorMessage)
 		return nil
+	end
+end
+
+--[[
+	Returns an ImageData object from a roblox image asset from an image ID.
+	
+	This method may return nil if it fails to fetch the asset.
+	
+	This method will yield your code.
+	
+	<strong>NOTE:</strong> Currently, only texture assets that are shared or owned by the creator of the place can be used.
+]]
+function CanvasDraw.GetImageDataFromTextureId(TextureId: string | number, MaxWidth: number?, MaxHeight: number?)
+	if type(TextureId) == "number" then -- plain asset id
+		return CanvasDraw.GetImageDataFromContent(Content.fromAssetId(TextureId), MaxWidth, MaxHeight)
+	elseif type(TextureId) == "string" then -- rbxassetid
+		return CanvasDraw.GetImageDataFromContent(Content.fromUri(TextureId), MaxWidth, MaxHeight)
+	else
+		error("CanvasDraw.GetImageDataFromTextureId(): Invalid TextureId - " .. type(TextureId))
 	end
 end
 
@@ -3052,88 +3124,106 @@ end
 
 --[[
 	Compresses an ImageData object and creates a CanvasDraw SaveObject instance, which can be stored in your place.
+	Use <em>GetImageData()</em> load the ImageData from the SaveObject.
 	
-	<em>Intended for plugin use</em>
+	<em>Only compatible with plugins</em>
 ]]
-function CanvasDraw.CreateSaveObject(ImageData: ImageData): Texture
-	local Chunks = {{}}
-
-	local Width = ImageData.Width
-
-	local RGBAIndex = 1
-
-	-- Get all colours from image
-	for Y = 1, ImageData.Height do
-		for X = 1, Width do
-			local Index = X + (Y - 1) * Width
-
-			local R, G, B, A = ImageData:GetRGBA(X, Y)
-
-			local R = math.floor(R * 255)
-			local G = math.floor(G * 255)
-			local B = math.floor(B * 255)
-			local A = math.floor(A * 255)
-
-			-- Chunking
-			local Array = Chunks[#Chunks]
-
-			if #Array >= ChunkLimit then -- Ensures the string will be under 200KB
-				table.insert(Chunks, {})
-				Array = Chunks[#Chunks]
-				RGBAIndex = 1
-			end
-
-			Array[RGBAIndex] = R
-			Array[RGBAIndex + 1] = G
-			Array[RGBAIndex + 2] = B
-			Array[RGBAIndex + 3] = A
-
-			RGBAIndex += 4
-		end
+function CanvasDraw.CreateSaveObject(ImageData: ImageData): Instance
+	if not plugin then 
+		error("CreateSaveObject() error: This function can only run under plugin context!")
+		return nil
 	end
+	
+	-- Create SaveObject
+	local Width = ImageData.Width
+	local Height = ImageData.Height
 
-	-- Create the save object
+	local ImageBuffer = ImageData.ImageBuffer
+	local BufferSize = buffer.len(ImageBuffer)
+
 	local NewSaveObject = Instance.new("Texture")
 	NewSaveObject.Name = "NewSave"
+	NewSaveObject:SetAttribute("ChunkSize", SaveObjectChunkSize)
+	NewSaveObject:SetAttribute("Resolution", ImageData.ImageResolution)
+	NewSaveObject:SetAttribute("BufferSize", BufferSize)
+	NewSaveObject:SetAttribute("Version", 1)
+	
+	local CurrentSourceStartIndex = 0
+	local ChunkCount = 0
 
-	-- Compress the pixel data
-	local CompressedChunks = {}
+	-- Split the buffer into compressed chunks
+	while CurrentSourceStartIndex < BufferSize do
+		local SourceEndIndex = math.min(CurrentSourceStartIndex + SaveObjectChunkSize, BufferSize)
+		local BufferWidth = SourceEndIndex - CurrentSourceStartIndex
 
-	for i, RGBAArray in pairs(Chunks) do
-		local Compressed = StringCompressor.Compress(HttpService:JSONEncode(RGBAArray))
+		local BufferChunk = buffer.create(BufferWidth)
+		buffer.copy(BufferChunk, 0, ImageBuffer, CurrentSourceStartIndex, BufferWidth)
 
-		local ChunkString = Instance.new("StringValue", NewSaveObject)
-		ChunkString.Value = Compressed
-		ChunkString.Name = "Chunk" .. i
+		-- Pack the chunk into the SaveObject
+		local ChunkString = HttpService:JSONEncode(BufferChunk)
+
+		local ChunkModule = Instance.new("ModuleScript")
+		ChunkModule.Name = ChunkCount
+		ChunkModule.Source = `return '{ChunkString}'`
+		ChunkModule.Parent = NewSaveObject
+
+		CurrentSourceStartIndex += SaveObjectChunkSize
+		ChunkCount += 1
 	end
-
-	NewSaveObject:SetAttribute("Resolution", Vector2.new(ImageData.Width, ImageData.Height))
-	NewSaveObject:SetAttribute("Version", 0)
 
 	return NewSaveObject
 end
 
--- Compresses and converts an ImageData object into a smaller datastore compatible object
-function CanvasDraw.CompressImageData(ImageData: ImageData): CompressedImageData
-	local PixelBuffer = ImageData.ImageBuffer
-	local Width, Height = ImageData.Width, ImageData.Height
-
-	-- Compress the pixel data
-	local CompressedPixels = HttpService:JSONEncode(PixelBuffer)
+--[[
+	Compresses and converts an ImageData object into a much smaller datastore compatible object
+	
+	There is an optional <em>CompressionLevel</em> parameter you can use to control the compression level.
+	This will determine how small and how fast compression will be.
+	This value can be a number ranging from -7 to 22. Defaults to 2 if left blank
+]] 
+function CanvasDraw.CompressImageData(ImageData: ImageData, CompressionLevel: number?): CompressedImageData
+	CompressionLevel = CompressionLevel or 2
+	
+	assert(
+		ImageData and ImageData.ImageBuffer, 
+		"CanvasDraw error: Invalid ImageData object when calling CanvasDraw.CompressImageData()"
+	)
+	
+	-- Compress
+	local CompressedPixels = EncodingService:CompressBuffer(ImageData.ImageBuffer, Enum.CompressionAlgorithm.Zstd, CompressionLevel)
 
 	-- Create the data object
 	local CompressedData = {}
 	CompressedData.Pixels = CompressedPixels
-	CompressedData.Width = Width
-	CompressedData.Height = Height
+	CompressedData.Width = ImageData.Width
+	CompressedData.Height =  ImageData.Height
+	CompressedData.Compressionlevel = CompressionLevel
+	
+	CompressedData._Version = 0
 
 	return CompressedData
 end
 
 -- Creates and returns an ImageData object from CompressedImageData
 function CanvasDraw.DecompressImageData(CompressedImageData: CompressedImageData): ImageData
-	local PixelArray = HttpService:JSONDecode(CompressedImageData.Pixels)
-	local Width, Height = CompressedImageData.Width, CompressedImageData.Height
+	local PixelArray, Width, Height
+	
+	local DataVersion = CompressedImageData._Version
+	
+	if DataVersion == 0 then 
+		-- New compression format
+		PixelArray = EncodingService:DecompressBuffer(CompressedImageData.Pixels, Enum.CompressionAlgorithm.Zstd)
+		Width, Height = CompressedImageData.Width, CompressedImageData.Height
+	elseif not DataVersion then
+		-- Old pre v4.19 JSONEncode compression format
+		PixelArray = HttpService:JSONDecode(CompressedImageData.Pixels)
+		local Width, Height = CompressedImageData.Width, CompressedImageData.Height
+	else
+		-- Unsupported version
+		warn("CanvasDraw error: Failed to decompress CompressedImageData due to an unsupported version! Ensure CanvasDraw is up to date!")
+		return nil
+	end
+	
 
 	return ImageDataConstructor.new(Width, Height, PixelArray)
 end
@@ -3148,6 +3238,6 @@ CanvasDraw.Updated = RunService.Heartbeat
 
 export type Canvas = typeof(CanvasDraw.new(0::any))
 export type ImageData = typeof(ImageDataConstructor.new(0::any))
-export type CompressedImageData = {Pixels: string, Width: number, Height: number}
+export type CompressedImageData = {Pixels: string, Width: number, Height: number, _Version: number}
 
 return CanvasDraw
