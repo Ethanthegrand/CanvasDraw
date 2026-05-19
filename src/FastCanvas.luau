@@ -24,8 +24,8 @@ type ParentType = GuiObject | MeshPart | Decal | Texture | SurfaceAppearance
 local bit32bor = bit32.bor
 local bit32lshift = bit32.lshift
 
-function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType, Blur: boolean?)
-	local IsUiParent = CanvasParent:IsA("GuiObject")
+function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType?, Blur: boolean?)
+	local IsUiParent = CanvasParent and CanvasParent:IsA("GuiObject")
 
 	local Canvas = {} -- The canvas object
 	local Grid = buffer.create(Width * Height * 4) -- Local pixel grid containing RGBA values
@@ -56,30 +56,34 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType,
 
 	local CanvasFrame
 	local AspectRatio
+	
+	if CanvasParent then
+		if IsUiParent then
+			CanvasFrame = Instance.new("ImageLabel")
+			CanvasFrame.Name = "FastCanvas"
+			CanvasFrame.BackgroundTransparency = 1
+			CanvasFrame.ClipsDescendants = true
+			CanvasFrame.Size = UDim2.fromScale(1, 1)
+			CanvasFrame.Position = UDim2.fromScale(0.5, 0.5)
+			CanvasFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 
-	if IsUiParent then
-		CanvasFrame = Instance.new("ImageLabel")
-		CanvasFrame.Name = "FastCanvas"
-		CanvasFrame.BackgroundTransparency = 1
-		CanvasFrame.ClipsDescendants = true
-		CanvasFrame.Size = UDim2.fromScale(1, 1)
-		CanvasFrame.Position = UDim2.fromScale(0.5, 0.5)
-		CanvasFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+			if not Blur then
+				CanvasFrame.ResampleMode = Enum.ResamplerMode.Pixelated
+			end
 
-		if not Blur then
-			CanvasFrame.ResampleMode = Enum.ResamplerMode.Pixelated
+			AspectRatio = Instance.new("UIAspectRatioConstraint")
+			AspectRatio.AspectRatio = Width / Height
+			AspectRatio.Parent = CanvasFrame
+
+			CanvasFrame.ImageContent = Content.fromObject(EditableImage)
+			CanvasFrame.Parent = CanvasParent
+		elseif CanvasParent:IsA("Decal") or CanvasParent:IsA("Texture") or CanvasParent:IsA("MeshPart") then
+			CanvasParent.TextureContent = Content.fromObject(EditableImage)
+		elseif CanvasParent:IsA("SurfaceAppearance") then
+			CanvasParent.ColorMapContent = Content.fromObject(EditableImage)
+		else
+			error(CanvasParent.ClassName .. " is currently not supported as a canvas parent!")
 		end
-
-		AspectRatio = Instance.new("UIAspectRatioConstraint")
-		AspectRatio.AspectRatio = Width / Height
-		AspectRatio.Parent = CanvasFrame
-
-		CanvasFrame.ImageContent = Content.fromObject(EditableImage)
-		CanvasFrame.Parent = CanvasParent
-	elseif CanvasParent:IsA("Decal") or CanvasParent:IsA("Texture") or CanvasParent:IsA("MeshPart") then
-		CanvasParent.TextureContent = Content.fromObject(EditableImage)
-	else
-		error(CanvasParent.ClassName .. " is currently not supported as a canvas parent!")
 	end
 	
 	-- Properties

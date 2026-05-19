@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 8/5/2026
-	Version: 4.19.0
+	Last updated: 19/05/2026
+	Version: 4.20.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -32,10 +32,10 @@
 
 	>> CanvasDraw Functions:
 	
-	   - CanvasDraw.new(Parent, Resolution?, CanvasColour?, Blur?) : Canvas
+	   - CanvasDraw.new(Parent?, Resolution?, CanvasColour?, Blur?) : Canvas
 	      * Constructs and returns a canvas class/object.
 	      * The parent can be the following: 
-	        GuiObject (such as Frame) or MeshPart, Decal, etc
+	        GuiObject (such as Frame) or MeshPart, Decal, Texture, SurfaceAppearance or nil (none)
 	      * NOTE: This may fail to create and return a canvas if EditableImage memory budget is exceeded
 	
 	   - CanvasDraw.GetImageData(SaveObject, Slowload?) : ImageData
@@ -176,7 +176,7 @@
 	   - Canvas:SetAlpha(X, Y, Alpha)
 	      * Places a pixel on the canvas
 	      
-	   - Canvas:DrawLine(PointA, PointB, Colour, Alpha?, Thickness?, RoundedCaps?)
+	   - Canvas:DrawLine(PointA, PointB, Colour, Alpha?, Thickness?, LineType?)
 	      * Draws a simple pixel line from two points on the canvas with a desired thickness.
 	      
 	   - Canvas:DrawCircle(Point, Radius, Colour, Alpha?, Fill?)
@@ -265,6 +265,11 @@
 	   
 	   - Canvas:CreateImageDataFromCanvas(PointA?, PointB?) : ImageData
 	      * Returns an ImageData class/table from the canvas pixels from PointA to PointB or the whole canvas.
+	      
+	   - Canvas:CreateImageContent() : Content [YIELDS]
+	      * Returns an image 'Content' object from the canvas. This can be used much like an image AssetID.
+	      * The generated content will only persist for the life-time of the data model / server.
+	      * If called from the server, the generated content will replicate down to clients.
 	         
 	>> Other Canvas Methods:
 	
@@ -297,6 +302,7 @@
 	      * Fires whenever the canvas renders automatically.
 	      * Canvas.AutoRenderFpsLimit will affect this event
 	      * This event will never fire automatically if 'Canvas.AutoRender' is set to 'false'
+	      * NOTE: This event will not exist nor work if the canvas' parent is set to nil
 	
 	====================================================================================================================
 	ImageData
@@ -328,6 +334,11 @@
 	   - ImageData:GetBuffer(X?, Y? BufferWidth? BufferHeight?) : buffer
 	      * Returns all the pixels on the canvas in the form of an RGBA buffer
 	      * The entire canvas will be used if all parameters are left empty
+	      
+	   - ImageData:CreateImageContent() : Content [YIELDS]
+	      * Returns an image 'Content' object from the ImageData. This can be used much like an image AssetID.
+	      * The generated content will only persist for the life-time of the data model / server.
+	      * If called from the server, the generated content will replicate down to clients.
 	      
 	   - ImageData:Flip(Vertical: boolean?)
 	      * Flips the image contents horizontally or vertically
@@ -369,7 +380,8 @@ local SaveObjectReader = require(script:WaitForChild("SaveObjectReader"))
 
 local CanvasDraw = {}
 
--- Read only
+-- Read only CanvasDraw enums
+
 CanvasDraw.BlendingModes = {
 	Normal = 0,
 	Replace = 1,
@@ -385,6 +397,22 @@ CanvasDraw.Fonts = {
 	["Monogram"] = "Monogram",
 	["Round"] = "Round",
 }
+
+CanvasDraw.LineTypes = {
+	Flat = 0,
+	Circle = 1,
+	Square = 2,
+}
+
+type FontName = "3x6"
+| "Atari"
+| "Codepage"
+| "CodepageLarge"
+| "GrandCD"
+| "Monogram"
+| "Round"
+type BlendingMode = number
+type LineType = number
 
 -- These variables are only accessed by this module [DO NOT EDIT!]
 local SaveObjectChunkSize = 190000
@@ -438,7 +466,6 @@ local function XYToPixelIndex(X, Y, ResolutionX)
 	return X + (Y - 1) * ResolutionX
 end
 
-
 --== MODULE FUCNTIONS ==--
 
 -- Canvas functions
@@ -449,7 +476,7 @@ end
 	Resolution limit is currently 1024x1024 (or 2048x2048 for plugins)
 ]]
 
-function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: Color3?, Blur: boolean?)
+function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour: Color3?, Blur: boolean?)
 	local Canvas = {
 		-- Modifyable properties
 		OutputWarnings = true,
@@ -478,7 +505,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		end
 	end
 
-	local UiFrameMode = Parent:IsA("GuiObject")
+	local UiFrameMode = Parent and Parent:IsA("GuiObject")
 	Canvas.IsUiFrame = UiFrameMode
 
 	--==<< Canvas Set-up >>==--
@@ -545,15 +572,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		GridImage.Parent = Parent:WaitForChild("FastCanvas")
 	end
 
-	-- Create custom events
-	local EventsFolder = Instance.new("Folder")
-	EventsFolder.Name = "Events"
-	EventsFolder.Parent = Parent
-
-	local OnRenderedBindable = Instance.new("BindableEvent")
-	OnRenderedBindable.Name = "OnRenderedEvent"
-	OnRenderedBindable.Parent = EventsFolder
-
 	local CanvasSetU32 = InternalCanvas.SetU32
 	local CanvasSetRGB = InternalCanvas.SetRGB
 	local CanvasSetRGBA = InternalCanvas.SetRGBA
@@ -562,10 +580,22 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 	local CanvasGetRGB = InternalCanvas.GetRGB
 	local CanvasGetRGBA = InternalCanvas.GetRGBA
 	local CanvasGetU32 = InternalCanvas.GetU32
+	
+	local EventsFolder
+	local OnRenderedBindable
+	
+	-- Create custom events
+	if Parent then
+		EventsFolder = Instance.new("Folder")
+		EventsFolder.Name = "Events"
+		EventsFolder.Parent = Parent
 
-	-- Canvas events
-
-	Canvas.OnRendered = OnRenderedBindable.Event
+		OnRenderedBindable = Instance.new("BindableEvent")
+		OnRenderedBindable.Name = "OnRenderedEvent"
+		OnRenderedBindable.Parent = EventsFolder
+		
+		Canvas.OnRendered = OnRenderedBindable.Event
+	end
 
 	-- Auto render
 
@@ -701,11 +731,47 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			PlotPixel()
 		end
 	end
+	
+	local function DrawBoxLine(X1, Y1, X2, Y2, Thickness, Colour, Alpha) -- For Canvas:DrawLine()
+		-- Based on @radvea's concept 
+		-- https://github.com/Ethanthegrand/CanvasDraw/pull/6
+
+		local sx = (X2 >= X1) and 1 or -1
+		local sy = (Y2 >= Y1) and 1 or -1
+
+		-- Start box corner triangle
+		local saX = X1 + sx * Thickness
+		local saY = Y1 - sy * Thickness
+
+		local sbX = X1 - sx * Thickness
+		local sbY = Y1 - sy * Thickness
+
+		local scX = X1 - sx * Thickness
+		local scY = Y1 + sy * Thickness
+
+		-- End box corner triangle
+		local eaX = X2 + sx * Thickness
+		local eaY = Y2 - sy * Thickness
+
+		local ebX = X2 + sx * Thickness
+		local ebY = Y2 + sy * Thickness
+
+		local ecX = X2 - sx * Thickness
+		local ecY = Y2 + sy * Thickness
+
+		-- End caps
+		Canvas:DrawTriangleXY(saX, saY, sbX, sbY, scX, scY, Colour, Alpha, true)
+		Canvas:DrawTriangleXY(eaX, eaY, ebX, ebY, ecX, ecY, Colour, Alpha, true)
+
+		-- Main line body
+		Canvas:DrawTriangleXY(scX, scY, saX, saY, eaX, eaY, Colour, Alpha, true)
+		Canvas:DrawTriangleXY(scX, scY, ecX, ecY, eaX, eaY, Colour, Alpha, true)
+	end
 
 
-	--============================================================================================================--
+	--=============================================================================================================--
 	--====  <<   Canvas API   >>   ================================================================================--
-	--============================================================================================================--
+	--=============================================================================================================--
 
 	--==<< Canvas Methods >>==--
 
@@ -732,7 +798,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		self.InternalCanvas = nil
 		self.CurrentCanvasFrame = nil
 		self.AutoUpdateConnection:Disconnect()
-		EventsFolder:Destroy()
+		if EventsFolder then EventsFolder:Destroy() end
 	end
 
 	-- Changes the canvas' internal ImageLabel to either have the resample mode set to blur, or pixelated	
@@ -813,7 +879,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			GridImage.ImageTransparency = self.GridTransparency
 		end
 
-		OnRenderedBindable:Fire(Clock - LastFrameTime)
+		if OnRenderedBindable then OnRenderedBindable:Fire(Clock - LastFrameTime) end
 		LastFrameTime = Clock
 	end
 
@@ -931,7 +997,6 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 						-- Gives us a ScreenPos value between (-0.5, -0.5) to (0.5, 0.5)
 						ScreenPos -= Vector2.new(Part.Size[XyToUse.X] / 2, Part.Size[XyToUse.Y] / 2)
 						ScreenPos /= Vector2.new(Part.Size[XyToUse.X], Part.Size[XyToUse.Y])
-						print(ScreenPos)
 
 						local PositionalOffset
 						local AspectRatioDifference = FastCanvasFrameSize / CanvasFrameSize
@@ -1432,6 +1497,25 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		PointB = PointB or self.Resolution
 
 		return ImageDataConstructor.new(self.CurrentResX, self.CurrentResY, InternalCanvas:GetBuffer())
+	end
+	
+	--[[
+		Creates a "baked" static content from the canvas. This can be used in any instance with an image content property 
+		(such as; Decal, Texture, ImageLabel, MeshPart, etc)
+		
+		This static content works just like any URI-backed image asset with an asset ID, however this only lasts for
+		the lifetime of the data model / server.
+		
+		If called from the server, the returned content will replicate down to all clients.
+	]]
+	function Canvas:CreateImageContent(): Content
+		-- Set the default points to be the whole canvas corners
+		local Result, ImageContent = AssetService:CreateDataModelContentAsync(Content.fromObject(Canvas.EditableImage))
+		if Result ~= Enum.CreateContentResult.Success then
+			OutputWarn("'CreateImageContent()' failed; " .. tostring(Result.Name))
+		end
+		
+		return ImageContent -- Will probably return blank if failed to generate content
 	end
 
 	--[[
@@ -2607,19 +2691,29 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 
 	--[[
 		Draws a line from two points on the canvas. If a thickness isn't given or is set to 0, a standard and fast bresenham line algoritm will be used.
-		Otherwise, a custom triangle-based line will be drawn for the thickness with an option for round or flat ends with the 
-		<strong>RoundedCaps</strong> parameter.
+		Otherwise, a custom triangle-based line will be drawn for the thickness.
+		
+		Use the <strong>LineType</strong> parameter to determine the type of line you'd like:
+		<strong>CanvasDraw.LineTypes.</strong>
+		<strong>- Flat</strong>
+		<strong>- Circle</strong>
+		<strong>- Square</strong>
 	]]
-	function Canvas:DrawLine(PointA: Vector2, PointB: Vector2, Colour: Color3, Alpha: number?, Thickness: number?, RoundedCaps: boolean?)
-		Canvas:DrawLineXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Alpha, Thickness, RoundedCaps)
+	function Canvas:DrawLine(PointA: Vector2, PointB: Vector2, Colour: Color3, Alpha: number?, Thickness: number?, LineType: LineType?)
+		Canvas:DrawLineXY(PointA.X, PointA.Y, PointB.X, PointB.Y, Colour, Alpha, Thickness, LineType)
 	end
 
 	--[[
 		Draws a line from two points on the canvas. If a thickness isn't given or is set to 0, a standard and fast bresenham line algoritm will be used.
-		Otherwise, a custom triangle-based line will be drawn for the thickness with an option for round or flat ends with the 
-		<strong>RoundedCaps</strong> parameter.
+		Otherwise, a custom triangle-based line will be drawn for the thickness.
+		
+		Use the <strong>LineType</strong> parameter to determine the type of line you'd like:
+		<strong>CanvasDraw.LineTypes.</strong>
+		<strong>- Flat</strong>
+		<strong>- Circle</strong>
+		<strong>- Square</strong>
 	]]
-	function Canvas:DrawLineXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Thickness: number?, RoundedCaps: boolean?)
+	function Canvas:DrawLineXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Thickness: number?, LineType: LineType?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
 		
@@ -2695,8 +2789,16 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 				PlotPixel()
 			end
 		else -- Custom polygon based thick line
-			RoundedCaps = RoundedCaps or type(RoundedCaps) == "nil" -- Ensures if the parameter is empty, its on be default
-
+			LineType = LineType or (type(LineType) == "nil" and 1) -- Ensures if the parameter is empty, its on circle by default
+			if type(LineType) == "boolean" then
+				LineType = 1 -- Retain backwards compatability
+			end
+			
+			if LineType == 2 then -- Box line
+				DrawBoxLine(X1, Y1, X2, Y2, Thickness, Colour, Alpha)
+				return
+			end
+			
 			local RawRot = math.atan2(X1 - X2, Y1 - Y2) -- Use distances between each axis
 			local Theta = RawRot
 
@@ -2710,7 +2812,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			local Diameter = 1 + (Thickness * 2)
 			local Rounder = (math.pi * 1.5) / Diameter
 
-			if RoundedCaps then
+			if LineType == 1 then -- Circle
 				Theta = math.round(Theta / Rounder) * Rounder -- Avoids strange behaviours for the triangle points for the end circles
 			end
 
@@ -2733,7 +2835,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 			Canvas:DrawTriangleXY(StartCornerX2, StartCornerY2, EndCornerX1, EndCornerY1, EndCornerX2, EndCornerY2, Colour, Alpha)
 
 			-- Draw rounded caps
-			if RoundedCaps then
+			if LineType == 1 then
 				Canvas:DrawCircleXY(X1, Y1, Thickness, Colour, Alpha)
 				Canvas:DrawCircleXY(X2, Y2, Thickness, Colour, Alpha)
 			end
@@ -2757,7 +2859,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		<strong>- Monogram</strong>
 		<strong>- Round</strong>
 	]]
-	function Canvas:DrawTextXY(Text: string, X: number, Y: number, Colour: Color3, FontName: string?, 
+	function Canvas:DrawTextXY(Text: string, X: number, Y: number, Colour: Color3, FontName: FontName?, 
 		Alignment: Enum.HorizontalAlignment?, Scale: number?, Wrap: boolean?, Spacing: number?)
 
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
@@ -2894,7 +2996,7 @@ function CanvasDraw.new(Parent: ParentType, Resolution: Vector2?, CanvasColour: 
 		<strong>- Monogram</strong>
 		<strong>- Round</strong>
 	]]
-	function Canvas:DrawText(Text: string, Point: Vector2, Colour: Color3, FontName: string?, 
+	function Canvas:DrawText(Text: string, Point: Vector2, Colour: Color3, FontName: FontName?, 
 		Alignment: Enum.HorizontalAlignment?, Scale: number?, Wrap: boolean?, Spacing: number?)
 		Canvas:DrawTextXY(Text, Point.X, Point.Y, Colour, FontName, Alignment, Scale, Wrap, Spacing)
 	end
@@ -3126,11 +3228,11 @@ end
 	Compresses an ImageData object and creates a CanvasDraw SaveObject instance, which can be stored in your place.
 	Use <em>GetImageData()</em> load the ImageData from the SaveObject.
 	
-	<em>Only compatible with plugins</em>
+	<em>Only compatible with plugins/edit mode</em>
 ]]
 function CanvasDraw.CreateSaveObject(ImageData: ImageData): Instance
-	if not plugin then 
-		error("CreateSaveObject() error: This function can only run under plugin context!")
+	if not RunService:IsStudio() or RunService:IsRunning() then
+		error("CreateSaveObject() error: This function can only run under plugin/edit context!")
 		return nil
 	end
 	
