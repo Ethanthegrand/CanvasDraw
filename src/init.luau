@@ -624,37 +624,58 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 	local function DrawScanline(StartX, EndX, Y, ColR, ColG, ColB, Alpha, ColU32)
 		local BlendingMode = Canvas.AlphaBlendingMode
+		local CurResX, CurResY = Canvas.CurrentResX, Canvas.CurrentResY
 
 		if BlendingMode == 0 and Alpha > 0 then
 			if Alpha > 1 then Alpha = 1 end
 
-			-- Normal blending
-			StartX = math.clamp(StartX, 1, ResX)
-			EndX = math.clamp(EndX, 1, ResX)
-			Y = math.clamp(Y, 1, ResY)
+			StartX = math.clamp(StartX, 1, CurResX)
+			EndX = math.clamp(EndX, 1, CurResX)
+			Y = math.clamp(Y, 1, CurResY)
+
+			-- Y doesnt change per scanline so hoist it, raw bytes beats /255 round trip
+			local PixelBuf = Canvas.Buffer
+			local RowBase = (Y - 1) * CurResX * 4
+			local ColR255 = ColR * 255
+			local ColG255 = ColG * 255
+			local ColB255 = ColB * 255
 
 			for X = StartX, EndX do
-				local BgR, BgG, BgB = CanvasGetRGB(Canvas, X, Y)
-				local R = Lerp(BgR, ColR, Alpha)
-				local G = Lerp(BgG, ColG, Alpha)
-				local B = Lerp(BgB, ColB, Alpha)
-
-				CanvasSetRGB(Canvas, X, Y, R, G, B)
+				local Idx = RowBase + (X - 1) * 4
+				local BgR = buffer.readu8(PixelBuf, Idx)
+				local BgG = buffer.readu8(PixelBuf, Idx + 1)
+				local BgB = buffer.readu8(PixelBuf, Idx + 2)
+				buffer.writeu8(PixelBuf, Idx,     BgR + (ColR255 - BgR) * Alpha)
+				buffer.writeu8(PixelBuf, Idx + 1, BgG + (ColG255 - BgG) * Alpha)
+				buffer.writeu8(PixelBuf, Idx + 2, BgB + (ColB255 - BgB) * Alpha)
 			end
 		elseif BlendingMode == 2 and Alpha < 1 then
-			-- Add blending
+			-- add blending
 			if Alpha > 1 then Alpha = 1 end
 
-			StartX = math.clamp(StartX, 1, ResX)
-			EndX = math.clamp(EndX, 1, ResX)
-			Y = math.clamp(Y, 1, ResY)
+			StartX = math.clamp(StartX, 1, CurResX)
+			EndX = math.clamp(EndX, 1, CurResX)
+			Y = math.clamp(Y, 1, CurResY)
+
+			local PixelBuf = Canvas.Buffer
+			local RowBase = (Y - 1) * CurResX * 4
+			local ColR255 = ColR * 255
+			local ColG255 = ColG * 255
+			local ColB255 = ColB * 255
+			local Alpha255 = Alpha * 255
 
 			for X = StartX, EndX do
-				local BgA = CanvasGetAlpha(Canvas, X, Y)
-				CanvasSetRGBA(Canvas, X, Y, ColR, ColG, ColB, math.min(Alpha + BgA, 1))
+				local Idx = RowBase + (X - 1) * 4
+				local BgA = buffer.readu8(PixelBuf, Idx + 3)
+				local NewA = BgA + Alpha255
+				if NewA > 255 then NewA = 255 end
+				buffer.writeu8(PixelBuf, Idx,     ColR255)
+				buffer.writeu8(PixelBuf, Idx + 1, ColG255)
+				buffer.writeu8(PixelBuf, Idx + 2, ColB255)
+				buffer.writeu8(PixelBuf, Idx + 3, NewA)
 			end
 		elseif BlendingMode == 1 or Alpha >= 1 then
-			-- Replace/default mode
+			-- replace/default mode
 			InternalCanvas:SetBufferLine(ColU32, StartX, EndX, Y)
 		end
 	end
@@ -2618,59 +2639,59 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		StartX = math.max(1, StartX)
 		StartY = math.max(1, StartY)
 
-		local SampleX = SampleXStart
-
 		local BlendingMode = Canvas.AlphaBlendingMode
 
-		-- Main draw loop
-		for DrawX = StartX, EndX do
+		-- pick rounding fn once instead of branching every pixel
+		local RoundX = FlipX and CeilN or FloorN
+		local RoundY = FlipY and CeilN or FloorN
+
+		-- y outer x inner so the inner loop hits sequential memory, blending branch stays outside
+		if BlendingMode == 0 then -- normal
 			local SampleY = SampleYStart
-			local RoundSampleX
-
-			if FlipX then
-				RoundSampleX = CeilN(SampleX)
-			else
-				RoundSampleX = FloorN(SampleX)
-			end
-
 			for DrawY = StartY, EndY do
-				local RoundSampleY
+				local RoundSampleY = RoundY(SampleY)
+				local SampleX = SampleXStart
+				for DrawX = StartX, EndX do
+					local R, G, B, A = ImgGetRGBA(ImageData, RoundX(SampleX), RoundSampleY)
 
-				if FlipY then
-					RoundSampleY = CeilN(SampleY)
-				else
-					RoundSampleY = FloorN(SampleY)
-				end
-
-				if BlendingMode == 0 then -- Normal
-					local R, G, B, A = ImgGetRGBA(ImageData, RoundSampleX, RoundSampleY)
-
-					if A == 0 then -- No need to do any calculations for completely transparent pixels
-						SampleY += SampleYStep
-						continue
+					if A ~= 0 then
+						if A < 1 then
+							local BgR, BgG, BgB = CanvasGetRGB(InternalCanvas, DrawX, DrawY)
+							R = Lerp(BgR, R, A)
+							G = Lerp(BgG, G, A)
+							B = Lerp(BgB, B, A)
+						end
+						CanvasSetRGB(InternalCanvas, DrawX, DrawY, R, G, B)
 					end
 
-					if A < 1 then
-						local BgR, BgG, BgB = CanvasGetRGB(InternalCanvas, DrawX, DrawY)
-
-						R = Lerp(BgR, R, A)
-						G = Lerp(BgG, G, A)
-						B = Lerp(BgB, B, A)
-					end
-
-					CanvasSetRGB(InternalCanvas, DrawX, DrawY, R, G, B)
-				elseif BlendingMode == 2 then -- Add
-					local R, G, B, A = ImgGetRGBA(ImageData, SampleX, SampleY)
-					local BgA = CanvasGetAlpha(Canvas, DrawX, DrawY)
-					CanvasSetRGBA(Canvas, DrawX, DrawY, R, G, B, math.min(BgA + A, 1))
-				elseif BlendingMode == 1 then -- Replace
-					CanvasSetU32(InternalCanvas, DrawX, DrawY, ImgGetU32(ImageData, RoundSampleX, RoundSampleY))
+					SampleX += SampleXStep
 				end
-
 				SampleY += SampleYStep
 			end
-
-			SampleX += SampleXStep
+		elseif BlendingMode == 1 then -- replace
+			local SampleY = SampleYStart
+			for DrawY = StartY, EndY do
+				local RoundSampleY = RoundY(SampleY)
+				local SampleX = SampleXStart
+				for DrawX = StartX, EndX do
+					CanvasSetU32(InternalCanvas, DrawX, DrawY, ImgGetU32(ImageData, RoundX(SampleX), RoundSampleY))
+					SampleX += SampleXStep
+				end
+				SampleY += SampleYStep
+			end
+		elseif BlendingMode == 2 then -- add (note: original passed raw unrounded coords here, this fixes that)
+			local SampleY = SampleYStart
+			for DrawY = StartY, EndY do
+				local RoundSampleY = RoundY(SampleY)
+				local SampleX = SampleXStart
+				for DrawX = StartX, EndX do
+					local R, G, B, A = ImgGetRGBA(ImageData, RoundX(SampleX), RoundSampleY)
+					local BgA = CanvasGetAlpha(Canvas, DrawX, DrawY)
+					CanvasSetRGBA(Canvas, DrawX, DrawY, R, G, B, math.min(BgA + A, 1))
+					SampleX += SampleXStep
+				end
+				SampleY += SampleYStep
+			end
 		end
 	end
 
@@ -2843,6 +2864,9 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 	end
 
+	local ScaledXCache = {}
+	local ScaledYCache = {}
+
 	--[[
 		Draws text to the canvas with bitmap font rendering.
 		
@@ -2900,6 +2924,26 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 		local CanvasResX, CanvasResY = self.CurrentResX, self.CurrentResY
 
+		-- cache per char size + scale so repeated calls with the same font dont alloc every frame
+		local xKey = CharWidth .. "_" .. Scale
+		local ScaledX = ScaledXCache[xKey]
+		if not ScaledX then
+			ScaledX = table.create(CharWidth)
+			for sx = 1, CharWidth do
+				ScaledX[sx] = CeilN(sx / Scale)
+			end
+			ScaledXCache[xKey] = ScaledX
+		end
+		local yKey = CharHeight .. "_" .. Scale
+		local ScaledY = ScaledYCache[yKey]
+		if not ScaledY then
+			ScaledY = table.create(CharHeight)
+			for sy = 1, CharHeight do
+				ScaledY[sy] = CeilN(sy / Scale)
+			end
+			ScaledYCache[yKey] = ScaledY
+		end
+
 		local TextLines = string.split(Text, "\n")
 
 		for i, TextLine in pairs(TextLines) do
@@ -2951,9 +2995,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 							break
 						end
 
-						SampleY = CeilN(SampleY / Scale)
-
-						local Row: number = TextCharacter[SampleY]
+						local Row: number = TextCharacter[ScaledY[SampleY]]
 
 						for SampleX = StartOffsetX, CharWidth do
 							local PlacementX = X + SampleX - 1 + OffsetX
@@ -2962,9 +3004,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 								continue
 							end
 
-							SampleX = CeilN(SampleX / Scale)
-
-							if bit32band(bit32rshift(Row, OrigCharWidth - SampleX), 1) == 1 then
+							if bit32band(bit32rshift(Row, OrigCharWidth - ScaledX[SampleX]), 1) == 1 then
 								if BlendingMode == 0 then -- Normal
 									CanvasSetRGB(InternalCanvas, PlacementX, PlacementY, ColR, ColG, ColB)
 								elseif BlendingMode == 1 or BlendingMode == 2 then -- Replace and add
