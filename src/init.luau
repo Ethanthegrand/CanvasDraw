@@ -1816,7 +1816,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 			for ImgX = StartX, ScaledImageResX do
 				CurrentStepX += StepX
-				local SampleX = CeilN(CurrentStepX)
+				local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
 				local PlacementX = X + ImgX - 1
 
 				CurrentStepY = 0
@@ -1828,7 +1828,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 				for ImgY = StartY, ScaledImageResY do
 					CurrentStepY += StepY
-					local SampleY = CeilN(CurrentStepY)
+					local SampleY = ClampN(CeilN(CurrentStepY), 1, ImageResolutionY)
 					local PlacementY = Y + ImgY - 1
 
 					if BlendingMode == 0 and TransparencyBlending then -- Normal blending
