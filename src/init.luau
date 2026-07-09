@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 19/05/2026
-	Version: 4.20.0
+	Last updated: 9/07/2026
+	Version: 4.20.2
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -291,7 +291,7 @@
 	     * (only available when canvas is parented to a GuiObject)
 	      
 	   - Canvas:Destroy()
-	      * Destroys the canvas and all data related
+	      * Destroys the canvas and all data references
 	      
 	   - Canvas:Render()
 	      * Manually update/render the canvas (if Canvas.AutoRender is set to 'false')
@@ -345,6 +345,9 @@
 	      
 	   - ImageData:Clone() : ImageData
 	      * Returns a unique copy of the image data object
+	      
+	   - ImageData:Destroy()
+	      * Destroys the ImageData object and all data references
 	
 	
 	>> ImageData Properties:
@@ -542,8 +545,10 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 	if ScanlineLength == 0 then return end
 
 	local Step = 1 / ScanlineLength
-	local du = (tex_eu - tex_su) * Step
-	local dv = (tex_ev - tex_sv) * Step
+	local RangeU = tex_eu - tex_su
+	local RangeV = tex_ev - tex_sv
+	local du = RangeU * Step
+	local dv = RangeV * Step
 
 	if bx > CurrentResX then
 		ScanlineLength = CurrentResX - ax
@@ -557,8 +562,8 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 		t = Step * StartOffsetX
 	end
 
-	local TexU = tex_su + t * (tex_eu - tex_su)
-	local TexV = tex_sv + t * (tex_ev - tex_sv)
+	local TexU = tex_su + t * RangeU
+	local TexV = tex_sv + t * RangeV
 
 	TexU = TexU * TexResX + 1
 	TexV = TexV * TexResY + 1
@@ -566,68 +571,193 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 	du *= TexResX
 	dv *= TexResY
 
+	local DrawIndex = ((ax + StartOffsetX) + (Y - 1) * CurrentResX) * 4 - 4
+
 	if Brightness < 1 then
-		for j = StartOffsetX, ScanlineLength do
-			local SampleX = ClampN(FloorN(TexU), 1, TexResX)
-			local SampleY = ClampN(FloorN(TexV), 1, TexResY)
-			local DrawX = ax + j
-			local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
-			local DrawIndex = (DrawX + (Y - 1) * CurrentResX) * 4 - 4
+		if BlendingMode == 1 then
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
+				end
 
-			local R = FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness)
-			local G = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness)
-			local B = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness)
-			local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
 
-			if BlendingMode == 0 and A > 0 then
-				buffer.writeu8(InternalBuffer, DrawIndex, R)
-				buffer.writeu8(InternalBuffer, DrawIndex + 1, G)
-				buffer.writeu8(InternalBuffer, DrawIndex + 2, B)
-			elseif BlendingMode == 2 and A > 0 then
-				buffer.writeu8(InternalBuffer, DrawIndex, R)
-				buffer.writeu8(InternalBuffer, DrawIndex + 1, G)
-				buffer.writeu8(InternalBuffer, DrawIndex + 2, B)
-				buffer.writeu8(InternalBuffer, DrawIndex + 3, 255)
-			elseif BlendingMode == 1 then
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				local R = FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness)
+				local G = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness)
+				local B = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness)
+				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+
 				buffer.writeu8(InternalBuffer, DrawIndex, R)
 				buffer.writeu8(InternalBuffer, DrawIndex + 1, G)
 				buffer.writeu8(InternalBuffer, DrawIndex + 2, B)
 				buffer.writeu8(InternalBuffer, DrawIndex + 3, A)
-			end
 
-			TexU += du
-			TexV += dv
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
+		elseif BlendingMode == 2 then
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
+				end
+
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
+
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+				if A > 0 then
+					buffer.writeu8(InternalBuffer, DrawIndex, FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness))
+					buffer.writeu8(InternalBuffer, DrawIndex + 1, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness))
+					buffer.writeu8(InternalBuffer, DrawIndex + 2, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness))
+					buffer.writeu8(InternalBuffer, DrawIndex + 3, 255)
+				end
+
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
+		else
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
+				end
+
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
+
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+				if A > 0 then
+					buffer.writeu8(InternalBuffer, DrawIndex, FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness))
+					buffer.writeu8(InternalBuffer, DrawIndex + 1, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness))
+					buffer.writeu8(InternalBuffer, DrawIndex + 2, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness))
+				end
+
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
 		end
 	else
-		for j = StartOffsetX, ScanlineLength do
-			local SampleX = ClampN(FloorN(TexU), 1, TexResX)
-			local SampleY = ClampN(FloorN(TexV), 1, TexResY)
-			local DrawX = ax + j
-			local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
-			local DrawIndex = (DrawX + (Y - 1) * CurrentResX) * 4 - 4
-			local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
-
-			if BlendingMode == 0 then
-				if A > 0 then
-					buffer.writeu8(InternalBuffer, DrawIndex, buffer.readu8(ImageBuffer, SampleIndex))
-					buffer.writeu8(InternalBuffer, DrawIndex + 1, buffer.readu8(ImageBuffer, SampleIndex + 1))
-					buffer.writeu8(InternalBuffer, DrawIndex + 2, buffer.readu8(ImageBuffer, SampleIndex + 2))
+		if BlendingMode == 1 then
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
 				end
-			elseif BlendingMode == 2 then
+
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
+
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				buffer.writeu32(InternalBuffer, DrawIndex, buffer.readu32(ImageBuffer, SampleIndex))
+
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
+		elseif BlendingMode == 2 then
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
+				end
+
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
+
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
 				if A > 0 then
 					buffer.writeu8(InternalBuffer, DrawIndex, buffer.readu8(ImageBuffer, SampleIndex))
 					buffer.writeu8(InternalBuffer, DrawIndex + 1, buffer.readu8(ImageBuffer, SampleIndex + 1))
 					buffer.writeu8(InternalBuffer, DrawIndex + 2, buffer.readu8(ImageBuffer, SampleIndex + 2))
 					buffer.writeu8(InternalBuffer, DrawIndex + 3, 255)
 				end
-			elseif BlendingMode == 1 then
-				buffer.writeu32(InternalBuffer, DrawIndex, buffer.readu32(ImageBuffer, SampleIndex))
-			end
 
-			TexU += du
-			TexV += dv
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
+		else
+			for _ = StartOffsetX, ScanlineLength do
+				local SampleX = FloorN(TexU)
+				if SampleX < 1 then
+					SampleX = 1
+				elseif SampleX > TexResX then
+					SampleX = TexResX
+				end
+
+				local SampleY = FloorN(TexV)
+				if SampleY < 1 then
+					SampleY = 1
+				elseif SampleY > TexResY then
+					SampleY = TexResY
+				end
+
+				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+				if A > 0 then
+					buffer.writeu8(InternalBuffer, DrawIndex, buffer.readu8(ImageBuffer, SampleIndex))
+					buffer.writeu8(InternalBuffer, DrawIndex + 1, buffer.readu8(ImageBuffer, SampleIndex + 1))
+					buffer.writeu8(InternalBuffer, DrawIndex + 2, buffer.readu8(ImageBuffer, SampleIndex + 2))
+				end
+
+				TexU += du
+				TexV += dv
+				DrawIndex += 4
+			end
 		end
 	end
+end
+
+
+
+local function RotatePoint(X, Y, PivotX, PivotY, Angle)
+	local CosTheta, SinTheta = math.cos(Angle), math.sin(Angle)
+	
+	-- Rotation maths
+	local RotX = (CosTheta * (X - PivotX) - SinTheta * (Y - PivotY) + PivotX)
+	local RotY = (SinTheta * (X - PivotX) + CosTheta * (Y - PivotY) + PivotY)
+
+	return math.floor(RotX), math.floor(RotY)
 end
 
 --== MODULE FUCNTIONS ==--
@@ -649,6 +779,8 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		GridColour = Color3.new(1, 1, 1),
 		AutoRenderFpsLimit = 0,
 		AlphaBlendingMode = CanvasDraw.BlendingModes.Replace,
+		_ScratchSampleRows = {},
+		_ScratchDrawRows = {},
 
 		-- Read only
 		Resolution = Vector2New(100, 100),
@@ -744,10 +876,10 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 	local CanvasGetRGB = InternalCanvas.GetRGB
 	local CanvasGetRGBA = InternalCanvas.GetRGBA
 	local CanvasGetU32 = InternalCanvas.GetU32
-	
+
 	local EventsFolder
 	local OnRenderedBindable
-	
+
 	-- Create custom events
 	if Parent then
 		EventsFolder = Instance.new("Folder")
@@ -757,7 +889,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		OnRenderedBindable = Instance.new("BindableEvent")
 		OnRenderedBindable.Name = "OnRenderedEvent"
 		OnRenderedBindable.Parent = EventsFolder
-		
+
 		Canvas.OnRendered = OnRenderedBindable.Event
 	end
 
@@ -833,10 +965,13 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 				local BgA = buffer.readu8(PixelBuf, Idx + 3)
 				local NewA = BgA + Alpha255
 				if NewA > 255 then NewA = 255 end
-				buffer.writeu8(PixelBuf, Idx,     ColR255)
-				buffer.writeu8(PixelBuf, Idx + 1, ColG255)
-				buffer.writeu8(PixelBuf, Idx + 2, ColB255)
-				buffer.writeu8(PixelBuf, Idx + 3, NewA)
+	
+				buffer.writeu32(PixelBuf, Idx, bit32bor(
+					bit32lshift(NewA, 24),
+					bit32lshift(ColB255, 16),
+					bit32lshift(ColG255, 8),
+					ColR255)
+				)
 			end
 		elseif BlendingMode == 1 or Alpha >= 1 then
 			-- replace/default mode
@@ -872,51 +1007,84 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			dy = Y1 - Y2
 		end
 
-		local err, e2 = dx-dy, nil
+		local err, e2 = dx - dy, nil
 
-		local function PlotPixel()
-			if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
-				if BlendingMode == 0 and Alpha > 0 then -- Normal
-					local ColR = R
-					local ColG = G 
-					local ColB = B 
+		if BlendingMode == 1 or Alpha >= 1 then
+			local SetU32 = InternalCanvas.SetU32
 
-					if Alpha < 1 then
-						local BgR, BgG, BgB = InternalCanvas:GetRGB(X1, Y1)
+			while not (X1 == X2 and Y1 == Y2) do
+				e2 = err + err
+				if e2 > -dy then
+					err -= dy
+					X1 += sx
+				end
+				if e2 < dx then
+					err += dx
+					Y1 += sy
+				end
 
-						ColR = Lerp(BgR, R, Alpha)
-						ColG = Lerp(BgG, G, Alpha)
-						ColB = Lerp(BgB, B, Alpha)
-					end
+				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+					SetU32(InternalCanvas, X1, Y1, ColourU32)
+				end
+			end
+		elseif BlendingMode == 2 and Alpha < 1 then
+			while not (X1 == X2 and Y1 == Y2) do
+				e2 = err + err
+				if e2 > -dy then
+					err -= dy
+					X1 += sx
+				end
+				if e2 < dx then
+					err += dx
+					Y1 += sy
+				end
 
-					InternalCanvas:SetRGB(X1, Y1, ColR, ColG, ColB)
-				elseif BlendingMode == 2 and Alpha < 1 then
-					-- Add blending
+				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
 					local BgA = CanvasGetAlpha(Canvas, X1, Y1)
 					CanvasSetRGBA(Canvas, X1, Y1, R, G, B, math.min(BgA + Alpha, 1))
-				elseif BlendingMode == 1 or Alpha >= 1 then
-					InternalCanvas:SetU32(X1, Y1, ColourU32)
+				end
+			end
+		elseif BlendingMode == 0 and Alpha > 0 then
+			local SetRGB = InternalCanvas.SetRGB
+			local GetRGB = InternalCanvas.GetRGB
+
+			if Alpha < 1 then
+				while not (X1 == X2 and Y1 == Y2) do
+					e2 = err + err
+					if e2 > -dy then
+						err -= dy
+						X1 += sx
+					end
+					if e2 < dx then
+						err += dx
+						Y1 += sy
+					end
+
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						local BgR, BgG, BgB = GetRGB(InternalCanvas, X1, Y1)
+						SetRGB(InternalCanvas, X1, Y1, Lerp(BgR, R, Alpha), Lerp(BgG, G, Alpha), Lerp(BgB, B, Alpha))
+					end
+				end
+			else
+				while not (X1 == X2 and Y1 == Y2) do
+					e2 = err + err
+					if e2 > -dy then
+						err -= dy
+						X1 += sx
+					end
+					if e2 < dx then
+						err += dx
+						Y1 += sy
+					end
+
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						SetRGB(InternalCanvas, X1, Y1, R, G, B)
+					end
 				end
 			end
 		end
-
-		-- Start point
-		--PlotPixel()
-
-		while not(X1 == X2 and Y1 == Y2) do
-			e2 = err + err
-			if e2 > -dy then
-				err -= dy
-				X1 += sx
-			end
-			if e2 < dx then
-				err += dx
-				Y1 += sy
-			end
-			PlotPixel()
-		end
 	end
-	
+
 	local function DrawBoxLine(X1, Y1, X2, Y2, Thickness, Colour, Alpha) -- For Canvas:DrawLine()
 		-- Based on @radvea's concept 
 		-- https://github.com/Ethanthegrand/CanvasDraw/pull/6
@@ -1600,7 +1768,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			end
 			TableInsert(PointsArray, Vector2New(DrawX, DrawY))
 		end
-		
+
 		local function CreateLineForCircle(StartX, EndX, Y)
 			StartX = math.clamp(StartX, 1, ResX)
 			EndX = math.clamp(EndX, 1, ResX)
@@ -1610,7 +1778,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 				TableInsert(PointsArray, Vector2New(X, Y))
 			end
 		end
-		
+
 		if Radius < 1 then
 			if Radius == 0 then
 				CreatePixelForCircle(X, Y)
@@ -1683,7 +1851,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 		return ImageDataConstructor.new(self.CurrentResX, self.CurrentResY, InternalCanvas:GetBuffer())
 	end
-	
+
 	--[[
 		Creates a "baked" static content from the canvas. This can be used in any instance with an image content property 
 		(such as; Decal, Texture, ImageLabel, MeshPart, etc)
@@ -1699,7 +1867,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		if Result ~= Enum.CreateContentResult.Success then
 			OutputWarn("'CreateImageContent()' failed; " .. tostring(Result.Name))
 		end
-		
+
 		return ImageContent -- Will probably return blank if failed to generate content
 	end
 
@@ -1747,8 +1915,6 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 
 		if X > ResX or Y > ResY then return end -- No need to draw if out of bounds
 
-		local GetImgU32 = ImageData.GetU32
-		local GetImgRGBA = ImageData.GetRGBA
 		local ImageBuffer = ImageData.ImageBuffer
 
 		local InternalBuffer = InternalCanvas.Buffer
@@ -1802,26 +1968,20 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			end
 		else
 			-- Draw image with scale adjustments (more expensive)
-			local CurrentStepX, CurrentStepY = 0, 0
-
-
-
 			local StepX = 1 / ScaleX
 			local StepY = 1 / ScaleY
 
-			-- Clip X
-			if X < 1 then
-				CurrentStepX = (-X + 1) * StepX
-			end
+			if BlendingMode == 0 and TransparencyBlending then
+				local CurrentStepX = 0
+				if X < 1 then
+					CurrentStepX = (-X + 1) * StepX
+				end
 
-			for ImgX = StartX, ScaledImageResX do
-				CurrentStepX += StepX
-				local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
-				local PlacementX = X + ImgX - 1
+				local SampleRows = self._ScratchSampleRows
+				local DrawRows = self._ScratchDrawRows
+				local RowCount = 0
+				local CurrentStepY = 0
 
-				CurrentStepY = 0
-
-				-- Clip Y
 				if Y < 1 then
 					CurrentStepY = (-Y + 1) * StepY
 				end
@@ -1830,40 +1990,131 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 					CurrentStepY += StepY
 					local SampleY = ClampN(CeilN(CurrentStepY), 1, ImageResolutionY)
 					local PlacementY = Y + ImgY - 1
+					RowCount += 1
+					SampleRows[RowCount] = (SampleY - 1) * ImageResolutionX * 4
+					DrawRows[RowCount] = (PlacementY - 1) * ResX * 4
+				end
 
-					if BlendingMode == 0 and TransparencyBlending then -- Normal blending
-						local ImgIndex = (SampleX + (SampleY - 1) * ImageResolutionX) * 4 - 4
+				for ImgX = StartX, ScaledImageResX do
+					CurrentStepX += StepX
+					local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
+					local PlacementX = X + ImgX - 1
+					local SampleXOffset = (SampleX - 1) * 4
+					local DrawXOffset = (PlacementX - 1) * 4
+
+					for Row = 1, RowCount do
+						local ImgIndex = SampleXOffset + SampleRows[Row]
 						local ImgA = buffer.readu8(ImageBuffer, ImgIndex + 3)
 
-						if ImgA == 0 then -- No need to do any calculations for completely transparent pixels
-							continue
+						if ImgA ~= 0 then
+							local DrawIndex = DrawXOffset + DrawRows[Row]
+							local ImgR = buffer.readu8(ImageBuffer, ImgIndex)
+							local ImgG = buffer.readu8(ImageBuffer, ImgIndex + 1)
+							local ImgB = buffer.readu8(ImageBuffer, ImgIndex + 2)
+
+							if ImgA < 255 then
+								local BgR = buffer.readu8(InternalBuffer, DrawIndex)
+								local BgG = buffer.readu8(InternalBuffer, DrawIndex + 1)
+								local BgB = buffer.readu8(InternalBuffer, DrawIndex + 2)
+								local InvA = 255 - ImgA
+
+								ImgR = FloorN((BgR * InvA + ImgR * ImgA) / 255)
+								ImgG = FloorN((BgG * InvA + ImgG * ImgA) / 255)
+								ImgB = FloorN((BgB * InvA + ImgB * ImgA) / 255)
+							end
+
+							buffer.writeu8(InternalBuffer, DrawIndex, ImgR)
+							buffer.writeu8(InternalBuffer, DrawIndex + 1, ImgG)
+							buffer.writeu8(InternalBuffer, DrawIndex + 2, ImgB)
 						end
+					end
+				end
+			elseif BlendingMode == 2 and TransparencyBlending then
+				local CurrentStepX = 0
+				if X < 1 then
+					CurrentStepX = (-X + 1) * StepX
+				end
 
-						local DrawIndex = (PlacementX + (PlacementY - 1) * ResX) * 4 - 4
-						local ImgR = buffer.readu8(ImageBuffer, ImgIndex)
-						local ImgG = buffer.readu8(ImageBuffer, ImgIndex + 1)
-						local ImgB = buffer.readu8(ImageBuffer, ImgIndex + 2)
+				local SampleRows = self._ScratchSampleRows
+				local DrawRows = self._ScratchDrawRows
+				local RowCount = 0
+				local CurrentStepY = 0
 
-						if ImgA < 255 then
-							local BgR = buffer.readu8(InternalBuffer, DrawIndex)
-							local BgG = buffer.readu8(InternalBuffer, DrawIndex + 1)
-							local BgB = buffer.readu8(InternalBuffer, DrawIndex + 2)
-							local InvA = 255 - ImgA
+				if Y < 1 then
+					CurrentStepY = (-Y + 1) * StepY
+				end
 
-							ImgR = FloorN((BgR * InvA + ImgR * ImgA) / 255)
-							ImgG = FloorN((BgG * InvA + ImgG * ImgA) / 255)
-							ImgB = FloorN((BgB * InvA + ImgB * ImgA) / 255)
+				for ImgY = StartY, ScaledImageResY do
+					CurrentStepY += StepY
+					local SampleY = ClampN(CeilN(CurrentStepY), 1, ImageResolutionY)
+					local PlacementY = Y + ImgY - 1
+					RowCount += 1
+					SampleRows[RowCount] = (SampleY - 1) * ImageResolutionX * 4
+					DrawRows[RowCount] = (PlacementY - 1) * ResX * 4
+				end
+
+				for ImgX = StartX, ScaledImageResX do
+					CurrentStepX += StepX
+					local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
+					local PlacementX = X + ImgX - 1
+					local SampleXOffset = (SampleX - 1) * 4
+					local DrawXOffset = (PlacementX - 1) * 4
+
+					for Row = 1, RowCount do
+						local ImgIndex = SampleXOffset + SampleRows[Row]
+						local ImgA = buffer.readu8(ImageBuffer, ImgIndex + 3)
+						if ImgA > 0 then
+							local DrawIndex = DrawXOffset + DrawRows[Row]
+							local BgA = buffer.readu8(InternalBuffer, DrawIndex + 3)
+							local NewA = BgA + ImgA
+							if NewA > 255 then
+								NewA = 255
+							end
+							
+							buffer.writeu32(InternalBuffer, DrawIndex, bit32bor(
+								bit32lshift(NewA, 24),
+								bit32lshift(buffer.readu8(ImageBuffer, ImgIndex + 2), 16),
+								bit32lshift(buffer.readu8(ImageBuffer, ImgIndex + 1), 8),
+								buffer.readu8(ImageBuffer, ImgIndex))
+							)
 						end
+					end
+				end
+			else
+				local CurrentStepX = 0
+				if X < 1 then
+					CurrentStepX = (-X + 1) * StepX
+				end
 
-						buffer.writeu8(InternalBuffer, DrawIndex, ImgR)
-						buffer.writeu8(InternalBuffer, DrawIndex + 1, ImgG)
-						buffer.writeu8(InternalBuffer, DrawIndex + 2, ImgB)
-					elseif BlendingMode == 2 and TransparencyBlending then
-						local ImgR, ImgG, ImgB, ImgA = GetImgRGBA(ImageData, SampleX, SampleY)
-						local BgA = CanvasGetAlpha(Canvas, PlacementX, PlacementY)
-						CanvasSetRGBA(Canvas, PlacementX, PlacementY, ImgR, ImgG, ImgB, math.min(ImgA + BgA, 1))
-					else -- Replace/No blending
-						CanvasSetU32(Canvas, PlacementX, PlacementY, GetImgU32(ImageData, SampleX, SampleY))
+				local SampleRows = self._ScratchSampleRows
+				local DrawRows = self._ScratchDrawRows
+				local RowCount = 0
+				local CurrentStepY = 0
+
+				if Y < 1 then
+					CurrentStepY = (-Y + 1) * StepY
+				end
+
+				for ImgY = StartY, ScaledImageResY do
+					CurrentStepY += StepY
+					local SampleY = ClampN(CeilN(CurrentStepY), 1, ImageResolutionY)
+					local PlacementY = Y + ImgY - 1
+					RowCount += 1
+					SampleRows[RowCount] = (SampleY - 1) * ImageResolutionX * 4
+					DrawRows[RowCount] = (PlacementY - 1) * ResX * 4
+				end
+
+				for ImgX = StartX, ScaledImageResX do
+					CurrentStepX += StepX
+					local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
+					local PlacementX = X + ImgX - 1
+					local SampleXOffset = (SampleX - 1) * 4
+					local DrawXOffset = (PlacementX - 1) * 4
+
+					for Row = 1, RowCount do
+						local ImgIndex = SampleXOffset + SampleRows[Row]
+						local DrawIndex = DrawXOffset + DrawRows[Row]
+						buffer.writeu32(InternalBuffer, DrawIndex, buffer.readu32(ImageBuffer, ImgIndex))
 					end
 				end
 			end
@@ -2097,10 +2348,10 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			-- Iterate over each row of the bounding box
 			for y = -Radius, Radius do
 				local rowY = Y + y
-				
+
 				if rowY < 1 then continue end
 				if rowY > ResY then break end
-				
+
 				-- Determine the horizontal extent of the circle at this y position
 				local HorizontalRadius = math.sqrt(Radius * Radius - y * y + Radius / 2)
 
@@ -2537,20 +2788,10 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		local PivotX = X + (PivotX * ImageSizeX)
 		local PivotY = Y + (PivotY * ImageSizeY)
 
-		local CosTheta, SinTheta = math.cos(Angle), math.sin(Angle)
-
-		local function RotatePoint(X, Y)
-			-- Rotation maths
-			local RotX = (CosTheta * (X - PivotX) - SinTheta * (Y - PivotY) + PivotX)
-			local RotY = (SinTheta * (X - PivotX) + CosTheta * (Y - PivotY) + PivotY)
-
-			return math.floor(RotX), math.floor(RotY)
-		end
-
-		local X1, Y1 = RotatePoint(X, Y)
-		local X2, Y2 = RotatePoint(X + ImageSizeX, Y)
-		local X3, Y3 = RotatePoint(X + ImageSizeX, Y + ImageSizeY)
-		local X4, Y4 = RotatePoint(X, Y + ImageSizeY)
+		local X1, Y1 = RotatePoint(X, Y, PivotX, PivotY, Angle)
+		local X2, Y2 = RotatePoint(X + ImageSizeX, Y, PivotX, PivotY, Angle)
+		local X3, Y3 = RotatePoint(X + ImageSizeX, Y + ImageSizeY, PivotX, PivotY, Angle)
+		local X4, Y4 = RotatePoint(X, Y + ImageSizeY, PivotX, PivotY, Angle)
 
 		Canvas:DrawDistortedImageXY(X1, Y1, X2, Y2, X3, Y3, X4, Y4, ImageData)
 	end
@@ -2575,9 +2816,55 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		ImageData: ImageData, X: number, Y: number, RectOffsetX: number, RectOffsetY: number, RectWidth: number, RectHeight: number
 	)
 		local ImageWidth = ImageData.Width
-		local SampleBuffer = ImageData:GetBuffer(1 + RectOffsetX, 1 + RectOffsetY, RectWidth, RectHeight)
+		local ImageHeight = ImageData.Height
 
-		Canvas:SetBuffer(SampleBuffer, X, Y, RectWidth, RectHeight)
+		if RectOffsetX < 0 or RectOffsetY < 0 or RectOffsetX + RectWidth > ImageWidth or RectOffsetY + RectHeight > ImageHeight then
+			warn("'Canvas:DrawFastImageRectXY()' failed as the given rect is outside the ImageData bounds")
+			return
+		end
+
+		local CanvasWidth = self.CurrentResX
+		local CanvasHeight = self.CurrentResY
+		local ScaledWidth = RectWidth
+		local OffsetY = 0
+		local OffsetX = 0
+
+		if X < 1 then
+			OffsetX = 1 + -X
+			ScaledWidth -= 1 + -X
+		end
+
+		if X + RectWidth - 1 > CanvasWidth then
+			ScaledWidth -= (X + RectWidth - 2) - CanvasWidth + 1
+		end
+
+		if Y < 1 then
+			OffsetY = 1 + -Y
+		end
+
+		local SampleStartX = 1 + OffsetX
+
+		if SampleStartX > RectWidth then return end
+		if X > CanvasWidth then return end
+
+		local DrawBuffer = self.Buffer
+		local SourceBuffer = ImageData.ImageBuffer
+
+		for ImgY = 1 + OffsetY, RectHeight do
+			local PlacementY = Y + ImgY - 1
+			if PlacementY > CanvasHeight then break end
+
+			local ImageBufferStartIndex = ((RectOffsetX + SampleStartX) + (RectOffsetY + ImgY - 1) * ImageWidth) * 4 - 4
+			local DrawStartIndex = (X + OffsetX + (PlacementY - 1) * CanvasWidth) * 4 - 4
+
+			buffer.copy(
+				DrawBuffer,
+				DrawStartIndex,
+				SourceBuffer,
+				ImageBufferStartIndex,
+				ScaledWidth * 4
+			)
+		end
 	end
 
 	--[[
@@ -2650,15 +2937,23 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		-- pick rounding fn once instead of branching every pixel
 		local RoundX = FlipX and CeilN or FloorN
 		local RoundY = FlipY and CeilN or FloorN
+		local Span = EndX - StartX + 1
+		local SampleRows = self._ScratchSampleRows
+
+		local SampleX = SampleXStart
+		for i = 1, Span do
+			SampleRows[i] = RoundX(SampleX)
+			SampleX += SampleXStep
+		end
 
 		-- y outer x inner so the inner loop hits sequential memory, blending branch stays outside
 		if BlendingMode == 0 then -- normal
 			local SampleY = SampleYStart
 			for DrawY = StartY, EndY do
 				local RoundSampleY = RoundY(SampleY)
-				local SampleX = SampleXStart
-				for DrawX = StartX, EndX do
-					local R, G, B, A = ImgGetRGBA(ImageData, RoundX(SampleX), RoundSampleY)
+				local DrawX = StartX
+				for i = 1, Span do
+					local R, G, B, A = ImgGetRGBA(ImageData, SampleRows[i], RoundSampleY)
 
 					if A ~= 0 then
 						if A < 1 then
@@ -2670,31 +2965,41 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 						CanvasSetRGB(InternalCanvas, DrawX, DrawY, R, G, B)
 					end
 
-					SampleX += SampleXStep
+					DrawX += 1
 				end
 				SampleY += SampleYStep
 			end
 		elseif BlendingMode == 1 then -- replace
+			local CanvasWidth = self.CurrentResX
+			local ImageBuffer = ImageData.ImageBuffer
+			local DrawBuffer = self.Buffer
+			local ImageStride = ImageSizeX * 4
+
 			local SampleY = SampleYStart
 			for DrawY = StartY, EndY do
 				local RoundSampleY = RoundY(SampleY)
-				local SampleX = SampleXStart
-				for DrawX = StartX, EndX do
-					CanvasSetU32(InternalCanvas, DrawX, DrawY, ImgGetU32(ImageData, RoundX(SampleX), RoundSampleY))
-					SampleX += SampleXStep
+				local SrcRowStart = (RoundSampleY - 1) * ImageStride
+				local DrawIndex = (StartX + (DrawY - 1) * CanvasWidth) * 4 - 4
+
+				for i = 1, Span do
+					local SrcX = SampleRows[i]
+					local SrcIndex = SrcRowStart + (SrcX - 1) * 4
+					buffer.writeu32(DrawBuffer, DrawIndex, buffer.readu32(ImageBuffer, SrcIndex))
+					DrawIndex += 4
 				end
+
 				SampleY += SampleYStep
 			end
-		elseif BlendingMode == 2 then -- add (note: original passed raw unrounded coords here, this fixes that)
+		elseif BlendingMode == 2 then -- add
 			local SampleY = SampleYStart
 			for DrawY = StartY, EndY do
 				local RoundSampleY = RoundY(SampleY)
-				local SampleX = SampleXStart
-				for DrawX = StartX, EndX do
-					local R, G, B, A = ImgGetRGBA(ImageData, RoundX(SampleX), RoundSampleY)
+				local DrawX = StartX
+				for i = 1, Span do
+					local R, G, B, A = ImgGetRGBA(ImageData, SampleRows[i], RoundSampleY)
 					local BgA = CanvasGetAlpha(Canvas, DrawX, DrawY)
 					CanvasSetRGBA(Canvas, DrawX, DrawY, R, G, B, math.min(BgA + A, 1))
-					SampleX += SampleXStep
+					DrawX += 1
 				end
 				SampleY += SampleYStep
 			end
@@ -2743,7 +3048,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 	function Canvas:DrawLineXY(X1: number, Y1: number, X2: number, Y2: number, Colour: Color3, Alpha: number?, Thickness: number?, LineType: LineType?)
 		local ColR, ColG, ColB = Colour.R, Colour.G, Colour.B
 		local ResX, ResY = self.CurrentResX, self.CurrentResY
-		
+
 		Alpha = Alpha or 1
 
 		local BlendingMode = self.AlphaBlendingMode
@@ -2772,60 +3077,111 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 				dy = Y1 - Y2
 			end
 
-			local err, e2 = dx-dy, nil
+			local err, e2 = dx - dy, nil
 
-			local function PlotPixel()
+			if BlendingMode == 1 or Alpha >= 1 then
+				local SetU32 = InternalCanvas.SetU32
+
 				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
-					if BlendingMode == 0 and Alpha > 0 then -- Normal
-						local R2 = ColR
-						local G2 = ColG 
-						local B2 = ColB
+					SetU32(InternalCanvas, X1, Y1, ColourU32)
+				end
 
-						if Alpha < 1 then
-							local BgR, BgG, BgB = InternalCanvas:GetRGB(X1, Y1)
+				while not (X1 == X2 and Y1 == Y2) do
+					e2 = err + err
+					if e2 > -dy then
+						err -= dy
+						X1 += sx
+					end
+					if e2 < dx then
+						err += dx
+						Y1 += sy
+					end
 
-							R2 = Lerp(BgR, ColR, Alpha)
-							G2 = Lerp(BgG, ColG, Alpha)
-							B2 = Lerp(BgB, ColB, Alpha)
-						end
-
-						InternalCanvas:SetRGB(X1, Y1, R2, G2, B2)
-					elseif BlendingMode == 2 and Alpha < 1 then
-						-- Add blending
-						local BgA = CanvasGetAlpha(Canvas, X1, Y1)
-						CanvasSetRGBA(Canvas, X1, Y1, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
-					elseif BlendingMode == 1 or Alpha >= 1 then
-						InternalCanvas:SetU32(X1, Y1, ColourU32)
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						SetU32(InternalCanvas, X1, Y1, ColourU32)
 					end
 				end
-			end
-
-			-- Start point
-			PlotPixel()
-
-			while not(X1 == X2 and Y1 == Y2) do
-				e2 = err + err
-				if e2 > -dy then
-					err -= dy
-					X1 += sx
+			elseif BlendingMode == 2 and Alpha < 1 then
+				if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+					local BgA = CanvasGetAlpha(Canvas, X1, Y1)
+					CanvasSetRGBA(Canvas, X1, Y1, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
 				end
-				if e2 < dx then
-					err += dx
-					Y1 += sy
+
+				while not (X1 == X2 and Y1 == Y2) do
+					e2 = err + err
+					if e2 > -dy then
+						err -= dy
+						X1 += sx
+					end
+					if e2 < dx then
+						err += dx
+						Y1 += sy
+					end
+
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						local BgA = CanvasGetAlpha(Canvas, X1, Y1)
+						CanvasSetRGBA(Canvas, X1, Y1, ColR, ColG, ColB, math.min(BgA + Alpha, 1))
+					end
 				end
-				PlotPixel()
+			elseif BlendingMode == 0 and Alpha > 0 then
+				local SetRGB = InternalCanvas.SetRGB
+				local GetRGB = InternalCanvas.GetRGB
+
+				if Alpha < 1 then
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						local BgR, BgG, BgB = GetRGB(InternalCanvas, X1, Y1)
+						SetRGB(InternalCanvas, X1, Y1, Lerp(BgR, ColR, Alpha), Lerp(BgG, ColG, Alpha), Lerp(BgB, ColB, Alpha))
+					end
+
+					while not (X1 == X2 and Y1 == Y2) do
+						e2 = err + err
+						if e2 > -dy then
+							err -= dy
+							X1 += sx
+						end
+						if e2 < dx then
+							err += dx
+							Y1 += sy
+						end
+
+						if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+							local BgR, BgG, BgB = GetRGB(InternalCanvas, X1, Y1)
+							SetRGB(InternalCanvas, X1, Y1, Lerp(BgR, ColR, Alpha), Lerp(BgG, ColG, Alpha), Lerp(BgB, ColB, Alpha))
+						end
+					end
+				else
+					if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+						SetRGB(InternalCanvas, X1, Y1, ColR, ColG, ColB)
+					end
+
+					while not (X1 == X2 and Y1 == Y2) do
+						e2 = err + err
+						if e2 > -dy then
+							err -= dy
+							X1 += sx
+						end
+						if e2 < dx then
+							err += dx
+							Y1 += sy
+						end
+
+						if X1 <= ResX and Y1 <= ResY and X1 > 0 and Y1 > 0 then
+							SetRGB(InternalCanvas, X1, Y1, ColR, ColG, ColB)
+						end
+					end
+				end
 			end
 		else -- Custom polygon based thick line
 			LineType = LineType or (type(LineType) == "nil" and 1) -- Ensures if the parameter is empty, its on circle by default
 			if type(LineType) == "boolean" then
 				LineType = 1 -- Retain backwards compatability
 			end
-			
+
 			if LineType == 2 then -- Box line
 				DrawBoxLine(X1, Y1, X2, Y2, Thickness, Colour, Alpha)
 				return
 			end
-			
+
 			local RawRot = math.atan2(X1 - X2, Y1 - Y2) -- Use distances between each axis
 			local Theta = RawRot
 
@@ -2880,7 +3236,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		
 		All current fonts can be found under: <strong><code>CanvasDraw.Fonts</code></strong>
 		
-		<strong>CanvasDraw.Font.</strong>
+		<strong>CanvasDraw.Fonts.</strong>
 		<strong>- 3x6</strong>
 		<strong>- Atari</strong>
 		<strong>- Codepage</strong>
@@ -3033,7 +3389,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		
 		All current fonts can be found under: <strong><code>CanvasDraw.Fonts</code></strong>
 		
-		<strong>CanvasDraw.Font.</strong>
+		<strong>CanvasDraw.Fonts.</strong>
 		<strong>- 3x6</strong>
 		<strong>- Atari</strong>
 		<strong>- Codepage</strong>
@@ -3281,7 +3637,7 @@ function CanvasDraw.CreateSaveObject(ImageData: ImageData): Instance
 		error("CreateSaveObject() error: This function can only run under plugin/edit context!")
 		return nil
 	end
-	
+
 	-- Create SaveObject
 	local Width = ImageData.Width
 	local Height = ImageData.Height
@@ -3295,7 +3651,7 @@ function CanvasDraw.CreateSaveObject(ImageData: ImageData): Instance
 	NewSaveObject:SetAttribute("Resolution", ImageData.ImageResolution)
 	NewSaveObject:SetAttribute("BufferSize", BufferSize)
 	NewSaveObject:SetAttribute("Version", 1)
-	
+
 	local CurrentSourceStartIndex = 0
 	local ChunkCount = 0
 
@@ -3331,12 +3687,12 @@ end
 ]] 
 function CanvasDraw.CompressImageData(ImageData: ImageData, CompressionLevel: number?): CompressedImageData
 	CompressionLevel = CompressionLevel or 2
-	
+
 	assert(
 		ImageData and ImageData.ImageBuffer, 
 		"CanvasDraw error: Invalid ImageData object when calling CanvasDraw.CompressImageData()"
 	)
-	
+
 	-- Compress
 	local CompressedPixels = EncodingService:CompressBuffer(ImageData.ImageBuffer, Enum.CompressionAlgorithm.Zstd, CompressionLevel)
 
@@ -3346,7 +3702,7 @@ function CanvasDraw.CompressImageData(ImageData: ImageData, CompressionLevel: nu
 	CompressedData.Width = ImageData.Width
 	CompressedData.Height =  ImageData.Height
 	CompressedData.Compressionlevel = CompressionLevel
-	
+
 	CompressedData._Version = 0
 
 	return CompressedData
@@ -3355,9 +3711,9 @@ end
 -- Creates and returns an ImageData object from CompressedImageData
 function CanvasDraw.DecompressImageData(CompressedImageData: CompressedImageData): ImageData
 	local PixelArray, Width, Height
-	
+
 	local DataVersion = CompressedImageData._Version
-	
+
 	if DataVersion == 0 then 
 		-- New compression format
 		PixelArray = EncodingService:DecompressBuffer(CompressedImageData.Pixels, Enum.CompressionAlgorithm.Zstd)
@@ -3371,7 +3727,7 @@ function CanvasDraw.DecompressImageData(CompressedImageData: CompressedImageData
 		warn("CanvasDraw error: Failed to decompress CompressedImageData due to an unsupported version! Ensure CanvasDraw is up to date!")
 		return nil
 	end
-	
+
 
 	return ImageDataConstructor.new(Width, Height, PixelArray)
 end
