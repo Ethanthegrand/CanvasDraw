@@ -1983,6 +1983,10 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 					local PlacementX = X + ImgX - 1
 					local SampleXOffset = (SampleX - 1) * 4
 					local DrawXOffset = (PlacementX - 1) * 4
+			for ImgX = StartX, ScaledImageResX do
+				CurrentStepX += StepX
+				local SampleX = ClampN(CeilN(CurrentStepX), 1, ImageResolutionX)
+				local PlacementX = X + ImgX - 1
 
 					for Row = 1, RowCount do
 						local ImgIndex = SampleXOffset + SampleRows[Row]
