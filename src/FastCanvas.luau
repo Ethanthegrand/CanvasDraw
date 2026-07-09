@@ -252,23 +252,36 @@ function FastCanvas.new(Width: number, Height: number, CanvasParent: ParentType?
 			X1, X2 = X2, X1
 		end
 
-		-- Clipping
-		X1 = math.floor(math.clamp(X1, 1, Width))
-		X2 = math.floor(math.clamp(X2, 1, Width))
-		Y = math.floor(math.clamp(Y, 1, Height))
+		X1 = math.floor(X1)
+		X2 = math.floor(X2)
+		Y = math.floor(Y)
+
+		if Y < 1 or Y > Height or X2 < 1 or X1 > Width then
+			return
+		end
+
+		if X1 < 1 then
+			X1 = 1
+		end
+		if X2 > Width then
+			X2 = Width
+		end
+		if X1 > X2 then
+			return
+		end
 
 		local StartIndex = (X1 + (Y - 1) * Width) * 4 - 4
-		local EndIndex = (X2 + (Y - 1) * Width) * 4
+		local Length = (X2 - X1 + 1) * 4
 
-		local Length = EndIndex - StartIndex
+		buffer.writeu32(Grid, StartIndex, ColourU32)
+
 		local SizeStep = 4
-		local Iterations = math.ceil(math.log(Length / 4, 2))
-
-		Canvas:SetU32(X1, Y, ColourU32) -- Initial pixel to copy
-
-		-- Copy until we fill the scanline
-		for _ = 1, Iterations do
-			local Count = math.min(SizeStep, Length - SizeStep)
+		while SizeStep < Length do
+			local Count = SizeStep
+			local Remaining = Length - SizeStep
+			if Count > Remaining then
+				Count = Remaining
+			end
 
 			buffer.copy(Grid, StartIndex + SizeStep, Grid, StartIndex, Count)
 			SizeStep += Count
