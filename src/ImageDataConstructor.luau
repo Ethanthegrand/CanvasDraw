@@ -243,16 +243,38 @@ function Module.new(ImageDataResX, ImageDataResY, Buffer)
 	
 	-- Flips the pixel contents of the ImageData either on it's horizontal or vertical axis
 	function ImageData:Flip(Vertical: boolean?)
-		local TempData = ImageData:Clone()
+		local PixelBuffer = ImageData.ImageBuffer
 		local Width, Height = ImageData.Width, ImageData.Height
-		
+
 		if Vertical then
-			for Y = 1, Height do
-				ImageData:SetBuffer(TempData:GetBuffer(1, Height - Y + 1, Width, 1), 1, Y, Width, 1)
+			local RowBytes = Width * 4
+			local TempRow = buffer.create(RowBytes)
+			local HalfHeight = math.floor(Height / 2)
+
+			for Y = 1, HalfHeight do
+				local TopIndex = (Y - 1) * RowBytes
+				local BottomIndex = (Height - Y) * RowBytes
+
+				buffer.copy(TempRow, 0, PixelBuffer, TopIndex, RowBytes)
+				buffer.copy(PixelBuffer, TopIndex, PixelBuffer, BottomIndex, RowBytes)
+				buffer.copy(PixelBuffer, BottomIndex, TempRow, 0, RowBytes)
 			end
 		else
-			for X = 1, Width do
-				ImageData:SetBuffer(TempData:GetBuffer(Width - X + 1, 1, 1, Height), X, 1, 1, Height)
+			local HalfWidth = math.floor(Width / 2)
+
+			for Y = 1, Height do
+				local RowBase = (Y - 1) * Width * 4
+
+				for X = 1, HalfWidth do
+					local LeftIndex = RowBase + (X - 1) * 4
+					local RightIndex = RowBase + (Width - X) * 4
+
+					local LeftPixel = buffer.readu32(PixelBuffer, LeftIndex)
+					local RightPixel = buffer.readu32(PixelBuffer, RightIndex)
+
+					buffer.writeu32(PixelBuffer, LeftIndex, RightPixel)
+					buffer.writeu32(PixelBuffer, RightIndex, LeftPixel)
+				end
 			end
 		end
 	end
