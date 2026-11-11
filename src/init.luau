@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 9/07/2026
-	Version: 4.20.2
+	Last updated: 11/11/2026
+	Version: 4.20.3
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -3645,7 +3645,8 @@ function CanvasDraw.CreateSaveObject(ImageData: ImageData): Instance
 	local ImageBuffer = ImageData.ImageBuffer
 	local BufferSize = buffer.len(ImageBuffer)
 
-	local NewSaveObject = Instance.new("Texture")
+	local NewSaveObject = Instance.new("Folder")
+	NewSaveObject.ExplorerIconContent = Content.fromUri("rbxassetid://77213664972259")
 	NewSaveObject.Name = "NewSave"
 	NewSaveObject:SetAttribute("ChunkSize", SaveObjectChunkSize)
 	NewSaveObject:SetAttribute("Resolution", ImageData.ImageResolution)
