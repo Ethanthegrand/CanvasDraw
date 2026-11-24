@@ -5,8 +5,8 @@
 	
 	Created by: Ethanthegrand (@Ethanthegrand14)
 	
-	Last updated: 11/11/2026
-	Version: 4.20.3
+	Last updated: 24/11/2026
+	Version: 4.21.0
 	
 	Learn how to use the module here: https://devforum.roblox.com/t/1624633
 	Detailed API Documentation: https://devforum.roblox.com/t/2017699
@@ -20,7 +20,7 @@
 	
 	Read more here: https://devforum.roblox.com/t/3267293
 	
-	Copyright © 2022 - 2026 | CanvasDraw
+	Copyright © 2022 - 2027 | CanvasDraw
 ]]
 
 --[[
@@ -56,7 +56,7 @@
 	   - CanvasDraw.CreateBlankImageData(Width, Height) : ImageData
 	      * Creates and returns a new blank ImageData object
 	      
-	   - CanvasDraw.CreateSaveObject(ImageData) : Instance [PLUGIN ONLY]
+	   - CanvasDraw.CreateSaveObject(ImageData) : Instance [PLUGIN / COMMAND BAR ONLY]
 	      * Returns a physical save object (an instance) containing compressed ImageData.
 	      * This instance can be stored anywhere in your place and can be loaded into CanvasDraw when needed.
 		  * Intended for plugin use.
@@ -70,16 +70,15 @@
 	   - CanvasDraw.DecompressImageData(CompressedImageData) : ImageData
 	      * Decompresses the CompressedImageData object, and converts it back to
 	        the original ImageData object.
-	      * Very useful with datastores.
 	      
 	   - CanvasDraw.GetColourU32(R, G, B, A) : number
 	   - CanvasDraw.GetColourU32FromColor3(Color3) : number
-	      * Returns a U32 number which represents a colour (R, G, B, A)
+	      * Returns a 32-bit unsigned integer number which represents a colour (R, G, B, A)
 	      
 	   - CanvasDraw.GetRGBAFromColourU32(ColourU32) : number, number, number, number
 	   - CanvasDraw.GetRGBFromColourU32(ColourU32) : number, number, number
 	      * Returns a tuple of the RGBA number values
-	        from a U32 number (which can be used to represent an RGBA colour)
+	        from a 32-bit unsigned integer number (which can be used to represent an RGBA colour)
 	      * The returned colour channels each range from 0 to 1
 	      
 	>> CanvasDraw Properties:
@@ -210,11 +209,12 @@
 	      * FlipX and FlipY can be used to flip your sprite. 
 	        Great for tile-based worlds or character animations.
 	     
-	   - Canvas:DrawTexturedTriangle(PointA, PointB, PointC, UV1, UV2, UV3, ImageData, Brightness?)
+	   - Canvas:DrawTexturedTriangle(PointA, PointB, PointC, UV1, UV2, UV3, ImageData, Z1?, Z2?, Z3? Brightness?)
 	      * Draws a textured triangle at three points from a given ImageData and UV coordinates.
 	      * UV coordinates range from a scale of 0 to 1 for each axis. 
 	        (0, 0 is top left, and 1, 1 is bottom right)
 	      * Intended for 3D rendering or 2D textured polygons.
+	      * Use the optional 'Z' paramters to correct for any texture distortion in 3D rendering from affine mapping.
 	      * Supports transparency, but not alpha blending.
 	     
 	   - Canvas:DrawDistortedImage(PointA, PointB, PointC, PointD, ImageData, Brightness?)
@@ -469,6 +469,49 @@ local function XYToPixelIndex(X, Y, ResolutionX)
 	return X + (Y - 1) * ResolutionX
 end
 
+local function computeHomographyFromUnitSquare(x1, y1, x2, y2, x3, y3, x4, y4)
+	local dx1 = x2 - x3
+	local dx2 = x4 - x3
+	local dx3 = x1 - x2 + x3 - x4
+
+	local dy1 = y2 - y3
+	local dy2 = y4 - y3
+	local dy3 = y1 - y2 + y3 - y4
+
+	local denom = dx1 * dy2 - dx2 * dy1
+	if math.abs(denom) < 1e-6 then
+		return nil -- Degenerate quad (collinear points)
+	end
+
+	local g = (dx3 * dy2 - dx2 * dy3) / denom
+	local h = (dx1 * dy3 - dx3 * dy1) / denom
+
+	local a = x2 - x1 + g * x2
+	local b = x4 - x1 + h * x4
+	local c = x1
+
+	local d = y2 - y1 + g * y2
+	local e = y4 - y1 + h * y4
+	local f = y1
+
+	return a, b, c, d, e, f, g, h
+end
+
+local function invert3x3(a, b, c, d, e, f, g, h)
+	local ia = e - f * h
+	local ib = c * h - b
+	local ic = b * f - c * e
+
+	local id = f * g - d
+	local ie = a - c * g
+	local ig = d * h - e * g
+	local ih = b * g - a * h
+	local ii = a * e - b * d
+	local i_f = c * d - a * f
+
+	return ia, ib, ic, id, ie, i_f, ig, ih, ii
+end
+
 -- module scoped on purpose avoids per draw closure allocation churn
 local function DrawTrianglePlotlineModule(ax, bx, Y, CurrentResX, DrawScanline, ColR, ColG, ColB, Alpha, ColourU32)
 	if ax > bx then
@@ -534,21 +577,33 @@ local function FillBottomTriangleModule(X1, Y1, X2, Y2, X3, Y3, YMin, YMax, Orig
 end
 
 -- module scoped on purpose avoids per draw closure allocation churn
-local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv, tex_ev, Y, CurrentResX, TexResX, TexResY, Brightness, BlendingMode, ImageBuffer, InternalBuffer)
+local function DrawTexturedTrianglePlotlineModule(
+	ax, bx,
+	tex_su, tex_eu,
+	tex_sv, tex_ev,
+	tex_sq, tex_eq,
+	Y, CurrentResX, TexResX, TexResY,
+	Brightness, BlendingMode, ImageBuffer, InternalBuffer
+)
 	if ax > bx then
 		ax, bx = Swap(ax, bx)
 		tex_su, tex_eu = Swap(tex_su, tex_eu)
 		tex_sv, tex_ev = Swap(tex_sv, tex_ev)
+		tex_sq, tex_eq = Swap(tex_sq, tex_eq)
 	end
 
 	local ScanlineLength = bx - ax
 	if ScanlineLength == 0 then return end
 
 	local Step = 1 / ScanlineLength
+
 	local RangeU = tex_eu - tex_su
 	local RangeV = tex_ev - tex_sv
+	local RangeQ = tex_eq - tex_sq
+
 	local du = RangeU * Step
 	local dv = RangeV * Step
+	local dq = RangeQ * Step
 
 	if bx > CurrentResX then
 		ScanlineLength = CurrentResX - ax
@@ -562,19 +617,27 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 		t = Step * StartOffsetX
 	end
 
-	local TexU = tex_su + t * RangeU
-	local TexV = tex_sv + t * RangeV
+	local TexUQ = tex_su + t * RangeU
+	local TexVQ = tex_sv + t * RangeV
+	local TexQ = tex_sq + t * RangeQ
+
+	-- Convert initial perspective-correct UV coordinates
+	local TexU = TexUQ / TexQ
+	local TexV = TexVQ / TexQ
 
 	TexU = TexU * TexResX + 1
 	TexV = TexV * TexResY + 1
+	
+	TexUQ = TexUQ * TexResX
+	TexVQ = TexVQ * TexResY
 
-	du *= TexResX
-	dv *= TexResY
+	du = du * TexResX
+	dv = dv * TexResY
 
 	local DrawIndex = ((ax + StartOffsetX) + (Y - 1) * CurrentResX) * 4 - 4
 
 	if Brightness < 1 then
-		if BlendingMode == 1 then
+		if BlendingMode == 1 then -- replace
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -591,21 +654,28 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 				end
 
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
+
 				local R = FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness)
 				local G = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness)
 				local B = FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness)
 				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+				
+				buffer.writeu32(InternalBuffer, DrawIndex, bit32bor(
+					bit32lshift(A, 24),
+					bit32lshift(B, 16),
+					bit32lshift(G, 8),
+					R)
+				)
 
-				buffer.writeu8(InternalBuffer, DrawIndex, R)
-				buffer.writeu8(InternalBuffer, DrawIndex + 1, G)
-				buffer.writeu8(InternalBuffer, DrawIndex + 2, B)
-				buffer.writeu8(InternalBuffer, DrawIndex + 3, A)
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
 
-				TexU += du
-				TexV += dv
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
-		elseif BlendingMode == 2 then
+		elseif BlendingMode == 2 then -- AddAlpha
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -623,6 +693,7 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
 				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+
 				if A > 0 then
 					buffer.writeu8(InternalBuffer, DrawIndex, FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness))
 					buffer.writeu8(InternalBuffer, DrawIndex + 1, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness))
@@ -630,11 +701,16 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 					buffer.writeu8(InternalBuffer, DrawIndex + 3, 255)
 				end
 
-				TexU += du
-				TexV += dv
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
+
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
 		else
+			-- Normal
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -652,19 +728,24 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
 				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+
 				if A > 0 then
 					buffer.writeu8(InternalBuffer, DrawIndex, FloorN(buffer.readu8(ImageBuffer, SampleIndex) * Brightness))
 					buffer.writeu8(InternalBuffer, DrawIndex + 1, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 1) * Brightness))
 					buffer.writeu8(InternalBuffer, DrawIndex + 2, FloorN(buffer.readu8(ImageBuffer, SampleIndex + 2) * Brightness))
 				end
 
-				TexU += du
-				TexV += dv
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
+
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
 		end
 	else
-		if BlendingMode == 1 then
+		if BlendingMode == 1 then -- Replace
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -683,11 +764,15 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
 				buffer.writeu32(InternalBuffer, DrawIndex, buffer.readu32(ImageBuffer, SampleIndex))
 
-				TexU += du
-				TexV += dv
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
+
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
-		elseif BlendingMode == 2 then
+		elseif BlendingMode == 2 then -- AddAlpha
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -705,6 +790,7 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
 				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+
 				if A > 0 then
 					buffer.writeu8(InternalBuffer, DrawIndex, buffer.readu8(ImageBuffer, SampleIndex))
 					buffer.writeu8(InternalBuffer, DrawIndex + 1, buffer.readu8(ImageBuffer, SampleIndex + 1))
@@ -712,11 +798,16 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 					buffer.writeu8(InternalBuffer, DrawIndex + 3, 255)
 				end
 
-				TexU += du
-				TexV += dv
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
+
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
 		else
+			-- Normal
 			for _ = StartOffsetX, ScanlineLength do
 				local SampleX = FloorN(TexU)
 				if SampleX < 1 then
@@ -734,14 +825,19 @@ local function DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv
 
 				local SampleIndex = (SampleX + (SampleY - 1) * TexResX) * 4 - 4
 				local A = buffer.readu8(ImageBuffer, SampleIndex + 3)
+
 				if A > 0 then
 					buffer.writeu8(InternalBuffer, DrawIndex, buffer.readu8(ImageBuffer, SampleIndex))
 					buffer.writeu8(InternalBuffer, DrawIndex + 1, buffer.readu8(ImageBuffer, SampleIndex + 1))
 					buffer.writeu8(InternalBuffer, DrawIndex + 2, buffer.readu8(ImageBuffer, SampleIndex + 2))
 				end
 
-				TexU += du
-				TexV += dv
+				TexUQ += du
+				TexVQ += dv
+				TexQ += dq
+
+				TexU = TexUQ / TexQ + 1
+				TexV = TexVQ / TexQ + 1
 				DrawIndex += 4
 			end
 		end
@@ -2574,27 +2670,33 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 	--[[
 		Draws a 3 point textured triangle with UV offset values
 		
-		The UV values range from 0 to 1
-		
 		Built for simple and fast 3D graphics rendering
+		
+		Use the 3 optional Z paramters to correct the texturing for perspective in 3D rendering
 	]]
 	function Canvas:DrawTexturedTriangleXY(
-		X1: number, Y1: number, X2: number, Y2: number, X3: number, Y3: number,
-		U1: number, V1: number, U2: number, V2: number, U3: number, V3: number,
-		ImageData, Brightness: number?
+		X1, Y1, X2, Y2, X3, Y3,
+		U1, V1, U2, V2, U3, V3,
+		ImageData, Z1, Z2, Z3, Brightness
 	)
 		local TexResX, TexResY = ImageData.Width, ImageData.Height
 		local BlendingMode = Canvas.AlphaBlendingMode
+
+		Z1 = Z1 or 1
+		Z2 = Z2 or 1
+		Z3 = Z3 or 1
 
 		X1, Y1 = CeilN(X1), CeilN(Y1)
 		X2, Y2 = CeilN(X2), CeilN(Y2)
 		X3, Y3 = CeilN(X3), CeilN(Y3)
 
+		-- Sort vertices by Y, keeping all attributes together
 		if Y2 < Y1 then
 			Y1, Y2 = Swap(Y1, Y2)
 			X1, X2 = Swap(X1, X2)
 			U1, U2 = Swap(U1, U2)
 			V1, V2 = Swap(V1, V2)
+			Z1, Z2 = Swap(Z1, Z2)
 		end
 
 		if Y3 < Y1 then
@@ -2602,6 +2704,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			X1, X3 = Swap(X1, X3)
 			U1, U3 = Swap(U1, U3)
 			V1, V3 = Swap(V1, V3)
+			Z1, Z3 = Swap(Z1, Z3)
 		end
 
 		if Y3 < Y2 then
@@ -2609,121 +2712,133 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 			X2, X3 = Swap(X2, X3)
 			U2, U3 = Swap(U2, U3)
 			V2, V3 = Swap(V2, V3)
+			Z2, Z3 = Swap(Z2, Z3)
 		end
 
 		if Y3 == Y1 then
-			Y3 += 1
+			return
 		end
 
+		-- Perspective attributes
+		local Q1 = 1 / Z1
+		local Q2 = 1 / Z2
+		local Q3 = 1 / Z3
+
+		local UQ1, VQ1 = U1 * Q1, V1 * Q1
+		local UQ2, VQ2 = U2 * Q2, V2 * Q2
+		local UQ3, VQ3 = U3 * Q3, V3 * Q3
+
 		Brightness = Brightness or 1
-
-		local dy1 = Y2 - Y1
-		local dx1 = X2 - X1
-		local dv1 = V2 - V1
-		local du1 = U2 - U1
-
-		local dy2 = Y3 - Y1
-		local dx2 = X3 - X1
-		local dv2 = V3 - V1
-		local du2 = U3 - U1
-
-		local dax_step, dbx_step = 0, 0
-		local du1_step, dv1_step = 0, 0
-		local du2_step, dv2_step = 0, 0
-
-		dax_step = dx1 / math.abs(dy1)
-		dbx_step = dx2 / math.abs(dy2)
-
-		du1_step = du1 / math.abs(dy1)
-		dv1_step = dv1 / math.abs(dy1)
-
-		du2_step = du2 / math.abs(dy2)
-		dv2_step = dv2 / math.abs(dy2)
 
 		local ImageBuffer = ImageData.ImageBuffer
 		local InternalBuffer = InternalCanvas.Buffer
 
-		-- Clip Y top
-		local YStart = 1
+		-- Long edge (vertex 1 to vertex 3)
+		local dy2 = Y3 - Y1
+		local dx2 = X3 - X1
 
-		if Y1 < 1 then
-			YStart = 1 - Y1
+		local dbx_step = dx2 / dy2
+
+		local du2_step = (UQ3 - UQ1) / dy2
+		local dv2_step = (VQ3 - VQ1) / dy2
+		local dq2_step = (Q3 - Q1) / dy2
+
+		-- Short upper edge (vertex 1 to vertex 2)
+		local dy1 = Y2 - Y1
+		local dx1 = X2 - X1
+
+		local dax_step = 0
+		local du1_step = 0
+		local dv1_step = 0
+		local dq1_step = 0
+
+		if dy1 ~= 0 then
+			dax_step = dx1 / dy1
+
+			du1_step = (UQ2 - UQ1) / dy1
+			dv1_step = (VQ2 - VQ1) / dy1
+			dq1_step = (Q2 - Q1) / dy1
 		end
 
-		-- Clip Y top
-		local TopYDist = math.min(Y2 - Y1, self.CurrentResY - Y1)
+		-- Draw top half
+		local YStart = math.max(0, 1 - Y1)
+		local TopYDist = math.min(dy1, self.CurrentResY - Y1)
 
-		-- Draw top triangle
 		for i = YStart, TopYDist do
-			--task.wait(1)
 			local ax = RoundN(X1 + i * dax_step)
 			local bx = RoundN(X1 + i * dbx_step)
 
-			-- Start values
-			local tex_su = U1 + i * du1_step
-			local tex_sv = V1 + i * dv1_step
+			local tex_su = UQ1 + i * du1_step
+			local tex_sv = VQ1 + i * dv1_step
+			local tex_sq = Q1 + i * dq1_step
 
-			-- End values
-			local tex_eu = U1 + i * du2_step
-			local tex_ev = V1 + i * dv2_step
+			local tex_eu = UQ1 + i * du2_step
+			local tex_ev = VQ1 + i * dv2_step
+			local tex_eq = Q1 + i * dq2_step
 
-			-- Scan line
-			DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv, tex_ev, Y1 + i, self.CurrentResX, TexResX, TexResY, Brightness, BlendingMode, ImageBuffer, InternalBuffer)
+			DrawTexturedTrianglePlotlineModule(
+				ax, bx,
+				tex_su, tex_eu,
+				tex_sv, tex_ev,
+				tex_sq, tex_eq,
+				Y1 + i,
+				self.CurrentResX, TexResX, TexResY,
+				Brightness, BlendingMode, ImageBuffer, InternalBuffer
+			)
 		end
 
+		-- Short lower edge (vertex 2 to vertex 3)
 		dy1 = Y3 - Y2
 		dx1 = X3 - X2
-		dv1 = V3 - V2
-		du1 = U3 - U2
 
-		dax_step = dx1 / math.abs(dy1)
-		dbx_step = dx2 / math.abs(dy2)
+		dax_step = dx1 / dy1
 
-		du1_step, dv1_step = 0, 0
+		du1_step = (UQ3 - UQ2) / dy1
+		dv1_step = (VQ3 - VQ2) / dy1
+		dq1_step = (Q3 - Q2) / dy1
 
-		du1_step = du1 / math.abs(dy1)
-		dv1_step = dv1 / math.abs(dy1)
-
-		-- Draw bottom triangle
-
-		-- Clip Y bottom
+		-- Draw bottom half
 		local BottomYDist = math.min(Y3 - Y2, self.CurrentResY - Y2)
 
-		local YStart = 0
-
-		if Y2 < 1 then
-			YStart = 1 - Y2
-		end
+		YStart = math.max(0, 1 - Y2)
 
 		for i = YStart, BottomYDist do
-			i = Y2 + i
-			--task.wait(1)
-			local ax = RoundN(X2 + (i - Y2) * dax_step)
-			local bx = RoundN(X1 + (i - Y1) * dbx_step)
+			local Y = Y2 + i
 
-			-- Start values
-			local tex_su = U2 + (i - Y2) * du1_step
-			local tex_sv = V2 + (i - Y2) * dv1_step
+			local ax = RoundN(X2 + i * dax_step)
+			local bx = RoundN(X1 + (Y - Y1) * dbx_step)
 
-			-- End values
-			local tex_eu = U1 + (i - Y1) * du2_step
-			local tex_ev = V1 + (i - Y1) * dv2_step
+			local tex_su = UQ2 + i * du1_step
+			local tex_sv = VQ2 + i * dv1_step
+			local tex_sq = Q2 + i * dq1_step
 
-			DrawTexturedTrianglePlotlineModule(ax, bx, tex_su, tex_eu, tex_sv, tex_ev, i, self.CurrentResX, TexResX, TexResY, Brightness, BlendingMode, ImageBuffer, InternalBuffer)
+			local tex_eu = UQ1 + (Y - Y1) * du2_step
+			local tex_ev = VQ1 + (Y - Y1) * dv2_step
+			local tex_eq = Q1 + (Y - Y1) * dq2_step
+
+			DrawTexturedTrianglePlotlineModule(
+				ax, bx,
+				tex_su, tex_eu,
+				tex_sv, tex_ev,
+				tex_sq, tex_eq,
+				Y,
+				self.CurrentResX, TexResX, TexResY,
+				Brightness, BlendingMode, ImageBuffer, InternalBuffer
+			)
 		end
 	end
 
 	--[[
 		Draws a 3 point textured triangle with UV offset values
 		
-		The UV values range from 0 to 1
-		
 		Built for simple and fast 3D graphics rendering
+		
+		Use the 3 optional Z paramters to correct for perspective in 3D rendering (not required for 2D or orthographic rendering)
 	]]
 	function Canvas:DrawTexturedTriangle(
 		PointA: Vector2, PointB: Vector2, PointC: Vector2, 
 		UV1: Vector2, UV2: Vector2, UV3: Vector2, 
-		ImageData, Brightness: number?
+		ImageData, Z1: number?, Z2: number?, Z3: number?, Brightness: number?
 	)
 
 		-- Convert to intergers
@@ -2733,7 +2848,7 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		Canvas:DrawTexturedTriangleXY(
 			X1, Y1, X2, Y2, X3, Y3,
 			UV1.X, UV1.Y, UV2.X, UV2.Y, UV3.X, UV3.Y,
-			ImageData, Brightness
+			ImageData, Z1, Z2, Z3, Brightness
 		)
 	end
 
@@ -2746,12 +2861,12 @@ function CanvasDraw.new(Parent: ParentType?, Resolution: Vector2?, CanvasColour:
 		Canvas:DrawTexturedTriangleXY(
 			X1, Y1, X2, Y2, X3, Y3,
 			0, 0, 1, 0, 1, 1,
-			ImageData, Brightness
+			ImageData, nil, nil, nil, Brightness
 		)
 		Canvas:DrawTexturedTriangleXY(
 			X1, Y1, X4, Y4, X3, Y3,
 			0, 0, 0, 1, 1, 1,
-			ImageData, Brightness
+			ImageData, nil, nil, nil, Brightness
 		)
 	end
 
@@ -3557,20 +3672,23 @@ function CanvasDraw.GetImageDataFromContent(ImageContent: Content, MaxWidth: num
 
 		-- Rescale the image if the size is greater than the limit
 		if MaxWidth and MaxHeight then
+			-- Rescale the image if the size is greater than either limit
 			local Scale
 
-			-- Get scale depending on the largest axis
-			if OriginalWidth > MaxWidth or OriginalHeight > MaxHeight then
+			if MaxWidth and OriginalWidth > MaxWidth then
 				Scale = MaxWidth / OriginalWidth
+			end
 
-				if math.floor(OriginalHeight * Scale) > MaxHeight then
-					Scale = MaxHeight / OriginalHeight
-				end
+			if MaxHeight and OriginalHeight > MaxHeight then
+				local HeightScale = MaxHeight / OriginalHeight
+				Scale = Scale and math.min(Scale, HeightScale) or HeightScale
 			end
 
 			-- Image is larger than our limits. Rescale it
 			if Scale then
-				NewImageData = CanvasDraw.CreateBlankImageData(math.floor(OriginalWidth * Scale), math.floor(OriginalHeight * Scale))
+				NewImageData = CanvasDraw.CreateBlankImageData(
+					math.max(1, math.floor(OriginalWidth * Scale)), math.max(1, math.floor(OriginalHeight * Scale))
+				)
 
 				for X = 1, NewImageData.Width do
 					local SampleX = math.floor((X / NewImageData.Width) * OriginalWidth)
@@ -3578,11 +3696,8 @@ function CanvasDraw.GetImageDataFromContent(ImageContent: Content, MaxWidth: num
 					for Y = 1, NewImageData.Height do
 						local SampleY = math.floor((Y / NewImageData.Height) * OriginalHeight)
 
-						local R, G, B = ReferenceImage:GetRGB(SampleX, SampleY)
-						local A = ReferenceImage:GetAlpha(SampleX, SampleY)
-
-						NewImageData:SetRGB(X, Y, R, G, B)
-						NewImageData:SetAlpha(X, Y, A)
+						local Pixel = ReferenceImage:GetU32(SampleX, SampleY)
+						NewImageData:SetU32(X, Y, Pixel)
 					end
 				end
 			else
@@ -3702,7 +3817,6 @@ function CanvasDraw.CompressImageData(ImageData: ImageData, CompressionLevel: nu
 	CompressedData.Pixels = CompressedPixels
 	CompressedData.Width = ImageData.Width
 	CompressedData.Height =  ImageData.Height
-	CompressedData.Compressionlevel = CompressionLevel
 
 	CompressedData._Version = 0
 
