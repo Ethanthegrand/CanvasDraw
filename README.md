@@ -3,8 +3,7 @@
 ![CanvasDraw logo (1)-1 png (1)](https://github.com/user-attachments/assets/5fb46068-470a-42e7-a66c-accbb3956d30#gh-light-mode-only)
 ![CanvasDraw logo (1)-1 png (1)](https://github.com/user-attachments/assets/a21aab73-ec9c-47cc-bc78-5c4cc0cade6e#gh-dark-mode-only)
 
-
-[![Discord Members](https://img.shields.io/discord/1325270158029361242?label=Discord&logo=discord&logoColor=white)](https://discord.gg/UBewvu3p2c) [![YouTube Subscribers](https://img.shields.io/youtube/channel/subscribers/UCfKAtjd9XCrOm9Ijh-ApIyQ?style=flat&logo=youtube&logoColor=white&label=YouTube)](https://www.youtube.com/@Ethanthegrand) ![Patreon](https://img.shields.io/endpoint?url=https://shieldsio-patreon.vercel.app/api?username=ethanthegrand&style=flat&logo=patreon&logoColor=white&label=Patreon) [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=TMUADR8M6QV28)
+[![Discord Members](https://img.shields.io/discord/1325270158029361242?label=Discord&logo=discord&logoColor=white)](https://discord.gg/UBewvu3p2c) [![YouTube](https://img.shields.io/badge/YouTube-Ethanthegrand-FF0000?style=flat&logo=youtube&logoColor=white)](https://www.youtube.com/@Ethanthegrand) ![Patreon](https://img.shields.io/endpoint?url=https://shieldsio-patreon.vercel.app/api?username=ethanthegrand&style=flat&logo=patreon&logoColor=white&label=Patreon) [![PayPal](https://img.shields.io/badge/PayPal-Donate-blue?logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=TMUADR8M6QV28)
 
 [![GitHub Releases Downloads](https://img.shields.io/github/downloads/Ethanthegrand/CanvasDraw/total?label=Downloads)](https://github.com/Ethanthegrand/CanvasDraw/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/Ethanthegrand/CanvasDraw?style=flat&label=Stars)](https://github.com/Ethanthegrand/CanvasDraw/stargazers)
